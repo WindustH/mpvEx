@@ -23,6 +23,10 @@ import app.marlboroadvance.mpvex.preferences.PlayerPreferences
 import app.marlboroadvance.mpvex.preferences.SubtitlesPreferences
 import app.marlboroadvance.mpvex.repository.wyzie.WyzieSearchRepository
 import app.marlboroadvance.mpvex.repository.wyzie.WyzieSubtitle
+import app.marlboroadvance.mpvex.repository.danmaku.DandanplayDanmakuRepository
+import app.marlboroadvance.mpvex.repository.danmaku.DanmakuAnime
+import app.marlboroadvance.mpvex.repository.danmaku.DanmakuComment
+import app.marlboroadvance.mpvex.repository.danmaku.DanmakuEpisode
 import app.marlboroadvance.mpvex.utils.media.ChecksumUtils
 import app.marlboroadvance.mpvex.utils.media.MediaInfoParser
 import `is`.xyz.mpv.MPVLib
@@ -53,6 +57,7 @@ import org.koin.core.component.inject
 import java.io.File
 import androidx.documentfile.provider.DocumentFile
 import app.marlboroadvance.mpvex.preferences.AdvancedPreferences
+import app.marlboroadvance.mpvex.preferences.DanmakuPreferences
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
 
@@ -91,6 +96,10 @@ class PlayerViewModel(
   private val json: Json by inject()
   private val playbackStateDao: app.marlboroadvance.mpvex.database.dao.PlaybackStateDao by inject()
   private val wyzieRepository: WyzieSearchRepository by inject()
+  private val danmakuRepository: DandanplayDanmakuRepository by inject()
+  val danmakuPreferences: DanmakuPreferences by inject()
+
+  private var currentFilePath: String? = null
 
   // Playlist items for the playlist sheet
   private val _playlistItems = kotlinx.coroutines.flow.MutableStateFlow<List<app.marlboroadvance.mpvex.ui.player.controls.components.sheets.PlaylistItem>>(emptyList())
@@ -108,6 +117,9 @@ class PlayerViewModel(
 
   private val _isOnlineSectionExpanded = MutableStateFlow(true)
   val isOnlineSectionExpanded: StateFlow<Boolean> = _isOnlineSectionExpanded.asStateFlow()
+
+  private val _danmakuState = MutableStateFlow(DanmakuUiState())
+  val danmakuState: StateFlow<DanmakuUiState> = _danmakuState.asStateFlow()
 
   // Media Search / Autocomplete
   private val _mediaSearchResults = MutableStateFlow<List<app.marlboroadvance.mpvex.repository.wyzie.WyzieTmdbResult>>(emptyList())
@@ -534,6 +546,8 @@ class PlayerViewModel(
     if (currentMediaTitle != mediaTitle) {
       currentMediaTitle = mediaTitle
       lastAutoSelectedMediaTitle = null
+      resetDanmakuForMedia(mediaTitle)
+      tryAutoMatchDanmaku()
       // Clear external subtitles when media changes
       _externalSubtitles.clear()
       // Scan for previously downloaded/added subtitles
@@ -716,6 +730,260 @@ class PlayerViewModel(
     _seasonEpisodes.value = emptyList()
     _selectedEpisode.value = null
     _mediaSearchResults.value = emptyList()
+  }
+
+  // --- Danmaku Search ---
+
+  fun updateDanmakuSearchQuery(query: String) {
+    _danmakuState.update {
+      it.copy(searchQuery = query, errorMessage = null)
+    }
+  }
+
+  fun searchDanmaku(query: String = _danmakuState.value.searchQuery) {
+    val trimmedQuery = query.trim()
+    if (trimmedQuery.isBlank()) return
+
+    viewModelScope.launch {
+      _danmakuState.update {
+        it.copy(
+          searchQuery = trimmedQuery,
+          isSearching = true,
+          animeResults = emptyList(),
+          episodeResults = emptyList(),
+          selectedAnime = null,
+          errorMessage = null,
+        )
+      }
+
+      runCatching {
+        danmakuRepository.searchAnime(trimmedQuery)
+      }.onSuccess { results ->
+        _danmakuState.update {
+          it.copy(
+            animeResults = results,
+            isSearching = false,
+            errorMessage = if (results.isEmpty()) "No danmaku matches found" else null,
+          )
+        }
+      }.onFailure { error ->
+        _danmakuState.update {
+          it.copy(
+            isSearching = false,
+            errorMessage = "Search failed: ${error.message ?: "unknown error"}",
+          )
+        }
+      }
+    }
+  }
+
+  fun selectDanmakuAnime(anime: DanmakuAnime) {
+    viewModelScope.launch {
+      _danmakuState.update {
+        it.copy(
+          selectedAnime = anime,
+          episodeResults = emptyList(),
+          isLoadingEpisodes = true,
+          errorMessage = null,
+        )
+      }
+
+      runCatching {
+        danmakuRepository.getEpisodes(anime.bangumiId)
+      }.onSuccess { episodes ->
+        _danmakuState.update {
+          it.copy(
+            episodeResults = episodes,
+            isLoadingEpisodes = false,
+            errorMessage = if (episodes.isEmpty()) "No episodes found" else null,
+          )
+        }
+      }.onFailure { error ->
+        _danmakuState.update {
+          it.copy(
+            isLoadingEpisodes = false,
+            errorMessage = "Failed to load episodes: ${error.message ?: "unknown error"}",
+          )
+        }
+      }
+    }
+  }
+
+  fun showDanmakuAnimeResults() {
+    _danmakuState.update {
+      it.copy(
+        selectedAnime = null,
+        episodeResults = emptyList(),
+        errorMessage = null,
+      )
+    }
+  }
+
+  fun loadDanmakuEpisode(episode: DanmakuEpisode) {
+    viewModelScope.launch {
+      _danmakuState.update {
+        it.copy(isLoadingComments = true, errorMessage = null)
+      }
+
+      runCatching {
+        assignDanmakuRows(danmakuRepository.getComments(episode.episodeId))
+      }.onSuccess { comments ->
+        val animeTitle = _danmakuState.value.selectedAnime?.title
+        val label = listOfNotNull(animeTitle, episode.title).joinToString(" - ")
+        if (comments.isNotEmpty()) {
+          danmakuPreferences.enabled.set(true)
+        }
+        _danmakuState.update {
+          it.copy(
+            comments = comments,
+            enabled = comments.isNotEmpty(),
+            loadedLabel = label.ifBlank { episode.title },
+            isLoadingComments = false,
+            errorMessage = if (comments.isEmpty()) "This episode has no danmaku" else null,
+          )
+        }
+        if (comments.isNotEmpty()) {
+          playerUpdate.value = PlayerUpdates.ShowText("Danmaku loaded: ${comments.size}")
+        }
+      }.onFailure { error ->
+        _danmakuState.update {
+          it.copy(
+            isLoadingComments = false,
+            errorMessage = "Failed to load danmaku: ${error.message ?: "unknown error"}",
+          )
+        }
+      }
+    }
+  }
+
+  fun toggleDanmaku() {
+    val state = _danmakuState.value
+    if (state.isAutoMatching || state.isLoadingComments) return
+
+    if (state.comments.isEmpty()) {
+      autoMatchDanmaku(enableOnSuccess = true, showMessages = true)
+      return
+    }
+
+    val enabled = !state.enabled
+    danmakuPreferences.enabled.set(enabled)
+    playerUpdate.value = PlayerUpdates.ShowText(if (enabled) "Danmaku On" else "Danmaku Off")
+    _danmakuState.update {
+      it.copy(enabled = enabled, errorMessage = null)
+    }
+  }
+
+  fun clearDanmaku() {
+    val query = _danmakuState.value.searchQuery
+    danmakuPreferences.enabled.set(false)
+    _danmakuState.value = DanmakuUiState(searchQuery = query)
+  }
+
+  fun setCurrentFilePath(filePath: String?) {
+    currentFilePath = filePath
+  }
+
+  private fun tryAutoMatchDanmaku() {
+    if (!danmakuPreferences.autoMatch.get() || !danmakuPreferences.enabled.get()) return
+    autoMatchDanmaku(enableOnSuccess = true, showMessages = false)
+  }
+
+  private fun autoMatchDanmaku(
+    enableOnSuccess: Boolean,
+    showMessages: Boolean,
+  ) {
+    val mediaTitle = currentMediaTitle
+    val filePath = currentFilePath
+    if (filePath == null && mediaTitle.isBlank()) return
+
+    viewModelScope.launch {
+      _danmakuState.update {
+        it.copy(isAutoMatching = true, errorMessage = null)
+      }
+
+      runCatching {
+        val episode = danmakuRepository.autoMatchDanmaku(mediaTitle, filePath)
+        val comments = episode?.let { assignDanmakuRows(danmakuRepository.getComments(it.episodeId)) }
+        episode to comments
+      }.onSuccess { (episode, comments) ->
+        when {
+          episode == null -> {
+            _danmakuState.update {
+              it.copy(
+                isAutoMatching = false,
+                errorMessage = "No matching danmaku found",
+              )
+            }
+            if (showMessages) {
+              playerUpdate.value = PlayerUpdates.ShowText("No matching danmaku")
+            }
+          }
+
+          comments.isNullOrEmpty() -> {
+            _danmakuState.update {
+              it.copy(
+                isAutoMatching = false,
+                errorMessage = "Matched episode has no danmaku",
+              )
+            }
+            if (showMessages) {
+              playerUpdate.value = PlayerUpdates.ShowText("Matched episode has no danmaku")
+            }
+          }
+
+          else -> {
+            if (enableOnSuccess) {
+              danmakuPreferences.enabled.set(true)
+            }
+            _danmakuState.update {
+              it.copy(
+                comments = comments,
+                enabled = enableOnSuccess,
+                loadedLabel = "${episode.title} (auto)",
+                isAutoMatching = false,
+                errorMessage = null,
+              )
+            }
+            if (showMessages) {
+              playerUpdate.value = PlayerUpdates.ShowText("Danmaku loaded: ${comments.size}")
+            }
+          }
+        }
+      }.onFailure { error ->
+        _danmakuState.update {
+          it.copy(
+            isAutoMatching = false,
+            errorMessage = "Auto-match failed: ${error.message ?: "unknown error"}",
+          )
+        }
+        if (showMessages) {
+          playerUpdate.value = PlayerUpdates.ShowText("Auto-match failed")
+        }
+        android.util.Log.d("Danmaku", "Auto-match failed: ${error.message}")
+      }
+    }
+  }
+
+  private fun resetDanmakuForMedia(mediaTitle: String) {
+    val parsedTitle = MediaInfoParser.parse(mediaTitle).title
+    val searchTitle = parsedTitle.ifBlank { mediaTitle.substringBeforeLast(".") }
+    _danmakuState.value = DanmakuUiState(searchQuery = searchTitle)
+  }
+
+  private fun assignDanmakuRows(comments: List<DanmakuComment>): List<DanmakuComment> {
+    var rollingRow = 0
+    var topRow = 0
+    var bottomRow = 0
+
+    return comments
+      .sortedBy { it.time }
+      .map { comment ->
+        when (comment.type) {
+          4 -> comment.copy(row = bottomRow++)
+          5 -> comment.copy(row = topRow++)
+          else -> comment.copy(row = rollingRow++)
+        }
+      }
   }
 
   // --- Subtitle Search ---

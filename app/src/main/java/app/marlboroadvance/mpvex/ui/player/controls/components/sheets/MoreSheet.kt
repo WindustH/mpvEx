@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.AlertDialog
@@ -64,6 +65,7 @@ fun MoreSheet(
   onStartTimer: (Int) -> Unit,
   onDismissRequest: () -> Unit,
   onEnterFiltersPanel: () -> Unit,
+  onOpenDanmaku: () -> Unit,
   onAnime4KChanged: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
@@ -140,6 +142,15 @@ val scope = rememberCoroutineScope()
             ) {
               Icon(imageVector = Icons.Default.Tune, contentDescription = null)
               Text(text = stringResource(id = R.string.player_sheets_filters_title))
+            }
+          }
+          TextButton(onClick = onOpenDanmaku) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+            ) {
+              Icon(imageVector = Icons.Default.BlurOn, contentDescription = null)
+              Text(text = "Danmaku")
             }
           }
         }
@@ -407,7 +418,6 @@ fun TimePickerDialog(
     }
   }
   }
-
 
 
 

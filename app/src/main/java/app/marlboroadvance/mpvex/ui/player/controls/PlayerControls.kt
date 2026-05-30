@@ -107,6 +107,7 @@ import app.marlboroadvance.mpvex.ui.player.VideoAspect
 import app.marlboroadvance.mpvex.ui.player.controls.components.BrightnessSlider
 import app.marlboroadvance.mpvex.ui.player.controls.components.CompactSpeedIndicator
 import app.marlboroadvance.mpvex.ui.player.controls.components.ControlsButton
+import app.marlboroadvance.mpvex.ui.player.controls.components.DanmakuOverlay
 import app.marlboroadvance.mpvex.ui.player.controls.components.MultipleSpeedPlayerUpdate
 import app.marlboroadvance.mpvex.ui.player.controls.components.SeekPlayerUpdate
 import app.marlboroadvance.mpvex.ui.player.controls.components.SeekbarWithTimers
@@ -300,6 +301,7 @@ fun PlayerControls(
         val playerPauseButton = createRef()
         val seekbar = createRef()
         val (playerUpdates) = createRefs()
+        val danmakuOverlay = createRef()
 
         val isBrightnessSliderShown by viewModel.isBrightnessSliderShown.collectAsState()
         val isVolumeSliderShown by viewModel.isVolumeSliderShown.collectAsState()
@@ -308,10 +310,46 @@ fun PlayerControls(
         val mpvVolume by MPVLib.propInt["volume"].collectAsState()
         val swapVolumeAndBrightness by playerPreferences.swapVolumeAndBrightness.collectAsState()
         val reduceMotion by playerPreferences.reduceMotion.collectAsState()
+        val danmakuState by viewModel.danmakuState.collectAsState()
+        val danmakuPrefs = remember { viewModel.danmakuPreferences }
+        val danmakuFontSize by danmakuPrefs.fontSize.collectAsState()
+        val danmakuOpacity by danmakuPrefs.opacity.collectAsState()
+        val danmakuScrollTime by danmakuPrefs.scrollTime.collectAsState()
+        val danmakuFixedTime by danmakuPrefs.fixedTime.collectAsState()
+        val danmakuFrameRate by danmakuPrefs.frameRate.collectAsState()
+        val danmakuDisplayArea by danmakuPrefs.displayArea.collectAsState()
+        val danmakuBold by danmakuPrefs.bold.collectAsState()
+        val danmakuOutline by danmakuPrefs.outline.collectAsState()
+        val danmakuShadow by danmakuPrefs.shadow.collectAsState()
 
         val activity = LocalActivity.current as PlayerActivity
         val aspect by viewModel.videoAspect.collectAsState()
         val currentZoom by viewModel.videoZoom.collectAsState()
+
+        DanmakuOverlay(
+          comments = danmakuState.comments,
+          enabled = danmakuState.enabled,
+          positionSeconds = precisePosition,
+          fontSize = danmakuFontSize,
+          opacity = danmakuOpacity,
+          scrollTime = danmakuScrollTime,
+          fixedTime = danmakuFixedTime,
+          frameRate = danmakuFrameRate,
+          displayArea = danmakuDisplayArea,
+          bold = danmakuBold,
+          outline = danmakuOutline,
+          shadow = danmakuShadow,
+          paused = paused == true,
+          playbackSpeed = playbackSpeed ?: 1f,
+          modifier = Modifier.constrainAs(danmakuOverlay) {
+            start.linkTo(parent.start)
+            end.linkTo(parent.end)
+            top.linkTo(parent.top)
+            bottom.linkTo(parent.bottom)
+            width = Dimension.fillToConstraints
+            height = Dimension.fillToConstraints
+          },
+        )
 
         val rawMediaTitle by MPVLib.propString["media-title"].collectAsState()
         val mediaTitle by remember(rawMediaTitle, activity) {

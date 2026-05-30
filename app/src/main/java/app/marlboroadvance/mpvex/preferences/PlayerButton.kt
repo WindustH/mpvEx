@@ -18,6 +18,8 @@ import androidx.compose.material.icons.outlined.Title
 import androidx.compose.material.icons.outlined.Flip
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.BlurOn
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Segment
 import androidx.compose.material.icons.outlined.ZoomIn
 import androidx.compose.material.icons.outlined.FastForward
@@ -48,6 +50,8 @@ enum class PlayerButton(
   LOCK_CONTROLS(Icons.Outlined.LockOpen),
   AUDIO_TRACK(Icons.Outlined.Audiotrack),
   SUBTITLES(Icons.Outlined.Subtitles),
+  DANMAKU_TOGGLE(Icons.Outlined.BlurOn),
+  DANMAKU_SEARCH(Icons.Outlined.Search),
   MORE_OPTIONS(Icons.Outlined.MoreVert),
   CURRENT_CHAPTER(Icons.Outlined.Bookmarks), // <-- CHANGED ICON
   REPEAT_MODE(Icons.Outlined.Repeat),
@@ -91,6 +95,8 @@ fun getPlayerButtonLabel(button: PlayerButton): String =
     PlayerButton.LOCK_CONTROLS -> "Lock Controls" // stringResource(R.string.btn_label_lock)
     PlayerButton.AUDIO_TRACK -> "Audio Track" // stringResource(R.string.btn_label_audio)
     PlayerButton.SUBTITLES -> "Subtitles" // stringResource(R.string.btn_label_subtitles)
+    PlayerButton.DANMAKU_TOGGLE -> "Danmaku Toggle"
+    PlayerButton.DANMAKU_SEARCH -> "Danmaku Search"
     PlayerButton.MORE_OPTIONS -> "More Options" // stringResource(R.string.btn_label_more)
     PlayerButton.CURRENT_CHAPTER -> "Current Chapter" // stringResource(R.string.btn_label_chapter)
     PlayerButton.REPEAT_MODE -> "Repeat Mode" // stringResource(R.string.btn_label_repeat_mode)

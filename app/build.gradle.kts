@@ -85,7 +85,7 @@ android {
 
     create("preview") {
       initWith(getByName("release"))
-      signingConfig = null
+      signingConfig = signingConfigs.getByName("debug")
       applicationIdSuffix = ".preview"
       versionNameSuffix = "-${getCommitCount()}"
     }

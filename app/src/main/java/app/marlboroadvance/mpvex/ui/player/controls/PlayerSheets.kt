@@ -16,6 +16,7 @@ import app.marlboroadvance.mpvex.ui.player.controls.components.sheets.AspectRati
 import app.marlboroadvance.mpvex.ui.player.controls.components.sheets.AudioTracksSheet
 import app.marlboroadvance.mpvex.ui.player.controls.components.sheets.ChaptersSheet
 import app.marlboroadvance.mpvex.ui.player.controls.components.sheets.DecodersSheet
+import app.marlboroadvance.mpvex.ui.player.controls.components.sheets.DanmakuSheet
 import app.marlboroadvance.mpvex.ui.player.controls.components.sheets.FrameNavigationSheet
 import app.marlboroadvance.mpvex.ui.player.controls.components.sheets.MoreSheet
 import app.marlboroadvance.mpvex.ui.player.controls.components.sheets.PlaybackSpeedSheet
@@ -195,6 +196,22 @@ fun PlayerSheets(
       )
     }
 
+    Sheets.Danmaku -> {
+      val state by viewModel.danmakuState.composeCollectAsState()
+
+      DanmakuSheet(
+        state = state,
+        onQueryChange = viewModel::updateDanmakuSearchQuery,
+        onSearch = { viewModel.searchDanmaku() },
+        onSelectAnime = viewModel::selectDanmakuAnime,
+        onBackToResults = viewModel::showDanmakuAnimeResults,
+        onLoadEpisode = viewModel::loadDanmakuEpisode,
+        onToggle = viewModel::toggleDanmaku,
+        onClear = viewModel::clearDanmaku,
+        onDismissRequest = onDismissRequest,
+      )
+    }
+
     Sheets.AudioTracks -> {
       val audioPicker =
         rememberLauncherForActivityResult(
@@ -236,6 +253,7 @@ fun PlayerSheets(
         onStartTimer = onStartSleepTimer,
         onDismissRequest = onDismissRequest,
         onEnterFiltersPanel = { onOpenPanel(Panels.VideoFilters) },
+        onOpenDanmaku = { onShowSheet(Sheets.Danmaku) },
         onAnime4KChanged = { },
       )
     }

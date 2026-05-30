@@ -1740,6 +1740,7 @@ class PlayerActivity :
     // Don't force media-title for m3u/m3u8 streams - let MPV provide it
     if (!isCurrentStreamM3U()) {
       MPVLib.setPropertyString("force-media-title", fileName)
+      viewModel.setCurrentFilePath(parsePathFromIntent(intent))
       viewModel.setMediaTitle(fileName)
     }
 
@@ -3046,6 +3047,7 @@ class PlayerActivity :
     val isM3U = uri.toString().lowercase().contains(".m3u8") || uri.toString().lowercase().contains(".m3u")
     if (!isM3U) {
       MPVLib.setPropertyString("force-media-title", fileName)
+      viewModel.setCurrentFilePath(uri.path)
       viewModel.setMediaTitle(fileName)
     }
 

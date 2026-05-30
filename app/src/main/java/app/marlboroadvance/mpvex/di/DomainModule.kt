@@ -1,6 +1,7 @@
 package app.marlboroadvance.mpvex.di
 
 import app.marlboroadvance.mpvex.domain.anime4k.Anime4KManager
+import app.marlboroadvance.mpvex.repository.danmaku.DandanplayDanmakuRepository
 import app.marlboroadvance.mpvex.repository.wyzie.WyzieSearchRepository
 import okhttp3.OkHttpClient
 import org.koin.dsl.module
@@ -16,5 +17,6 @@ val domainModule = module {
             .build()
     }
     single { Anime4KManager(androidContext()) }
+    single { DandanplayDanmakuRepository(get(), get()) }
     single { WyzieSearchRepository(androidContext(), get(), get(), get()) }
 }

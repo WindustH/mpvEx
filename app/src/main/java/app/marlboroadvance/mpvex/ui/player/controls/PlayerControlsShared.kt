@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOn
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.ShuffleOn
 import androidx.compose.material.icons.filled.Speed
@@ -576,6 +577,29 @@ fun RenderPlayerButton(
         Icons.Default.Subtitles,
         onClick = { onOpenSheet(Sheets.SubtitleTracks) },
         onLongClick = { onOpenPanel(Panels.SubtitleDelay) },
+        color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.size(buttonSize),
+      )
+    }
+
+    PlayerButton.DANMAKU_TOGGLE -> {
+      val danmakuState by viewModel.danmakuState.collectAsState()
+      val activeColor = if (hideBackground) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary
+      val inactiveColor = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface
+
+      ControlsButton(
+        Icons.Default.BlurOn,
+        onClick = { viewModel.toggleDanmaku() },
+        onLongClick = { onOpenSheet(Sheets.Danmaku) },
+        color = if (danmakuState.enabled || danmakuState.isAutoMatching) activeColor else inactiveColor,
+        modifier = Modifier.size(buttonSize),
+      )
+    }
+
+    PlayerButton.DANMAKU_SEARCH -> {
+      ControlsButton(
+        Icons.Default.Search,
+        onClick = { onOpenSheet(Sheets.Danmaku) },
         color = if (hideBackground) controlColor else MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.size(buttonSize),
       )

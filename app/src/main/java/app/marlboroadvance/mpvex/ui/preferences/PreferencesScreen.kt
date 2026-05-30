@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ViewQuilt
 import androidx.compose.material.icons.outlined.Audiotrack
+import androidx.compose.material.icons.outlined.BlurOn
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Gesture
@@ -135,11 +136,10 @@ object PreferencesScreen : Screen {
                 },
                 onClick = { backstack.add(AppearancePreferencesScreen) },
               )
-              
-              PreferenceDivider()
-              
-              Preference(
 
+              PreferenceDivider()
+
+              Preference(
                 title = { Text(text = stringResource(id = R.string.pref_layout_title)) },
                 summary = { 
                   Text(
@@ -302,6 +302,26 @@ object PreferencesScreen : Screen {
                   ) 
                 },
                 onClick = { backstack.add(AudioPreferencesScreen) },
+              )
+
+              PreferenceDivider()
+
+              Preference(
+                title = { Text(text = "Danmaku") },
+                summary = {
+                  Text(
+                    text = "Auto-match, display, and style settings for danmaku",
+                    color = MaterialTheme.colorScheme.outline
+                  )
+                },
+                icon = {
+                  Icon(
+                    Icons.Outlined.BlurOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                  )
+                },
+                onClick = { backstack.add(DanmakuPreferencesScreen) },
               )
             }
           }

@@ -39,7 +39,7 @@ class AppearancePreferences(
   val topRightControls =
     preferenceStore.getString(
       "top_right_controls",
-      "CURRENT_CHAPTER,DECODER,AUDIO_TRACK,SUBTITLES,MORE_OPTIONS",
+      "CURRENT_CHAPTER,DECODER,AUDIO_TRACK,SUBTITLES,DANMAKU_TOGGLE,DANMAKU_SEARCH,MORE_OPTIONS",
     )
 
   val bottomRightControls =
@@ -57,7 +57,7 @@ class AppearancePreferences(
   val portraitBottomControls =
     preferenceStore.getString(
       "portrait_bottom_controls",
-      "SCREEN_ROTATION,DECODER,AUDIO_TRACK,SUBTITLES,BOOKMARKS_CHAPTERS,PLAYBACK_SPEED,BACKGROUND_PLAYBACK,REPEAT_MODE,SHUFFLE,VIDEO_ZOOM,FRAME_NAVIGATION,ASPECT_RATIO,PICTURE_IN_PICTURE,LOCK_CONTROLS,MORE_OPTIONS",
+      "SCREEN_ROTATION,DECODER,AUDIO_TRACK,SUBTITLES,DANMAKU_TOGGLE,DANMAKU_SEARCH,BOOKMARKS_CHAPTERS,PLAYBACK_SPEED,BACKGROUND_PLAYBACK,REPEAT_MODE,SHUFFLE,VIDEO_ZOOM,FRAME_NAVIGATION,ASPECT_RATIO,PICTURE_IN_PICTURE,LOCK_CONTROLS,MORE_OPTIONS",
     )
 
   fun parseButtons(
@@ -67,6 +67,12 @@ class AppearancePreferences(
     csv
       .splitToSequence(',')
       .map { it.trim().uppercase() }
+      .flatMap { name ->
+        when (name) {
+          "DANMAKU" -> sequenceOf("DANMAKU_TOGGLE", "DANMAKU_SEARCH")
+          else -> sequenceOf(name)
+        }
+      }
       .mapNotNull { name ->
         try {
           PlayerButton.valueOf(name)
