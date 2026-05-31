@@ -175,6 +175,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
   val isLoading by viewModel.isLoading.collectAsState()
   val error by viewModel.error.collectAsState()
   val isAtRoot by viewModel.isAtRoot.collectAsState()
+  val isBookmarked by viewModel.isBookmarked.collectAsState()
   val breadcrumbs by viewModel.breadcrumbs.collectAsState()
   val playlistMode by playerPreferences.playlistMode.collectAsState()
   val itemsWereDeletedOrMoved by viewModel.itemsWereDeletedOrMoved.collectAsState()
@@ -1657,6 +1658,31 @@ fun FileSystemSortDialog(
         label = "Size",
         checked = showSizeChip,
         onCheckedChange = { browserPreferences.showSizeChip.set(it) },
+      ),
+      VisibilityToggle(
+        label = "Resolution",
+        checked = showResolutionChip,
+        onCheckedChange = { browserPreferences.showResolutionChip.set(it) },
+      ),
+      VisibilityToggle(
+        label = "Framerate",
+        checked = showFramerateInResolution,
+        onCheckedChange = { browserPreferences.showFramerateInResolution.set(it) },
+      ),
+      VisibilityToggle(
+        label = "Subtitle",
+        checked = showSubtitleIndicator,
+        onCheckedChange = { browserPreferences.showSubtitleIndicator.set(it) },
+      ),
+      VisibilityToggle(
+        label = "Progress Bar",
+        checked = showProgressBar,
+        onCheckedChange = { browserPreferences.showProgressBar.set(it) },
+      ),
+    )
+  )
+}
+   onCheckedChange = { browserPreferences.showSizeChip.set(it) },
       ),
       VisibilityToggle(
         label = "Resolution",

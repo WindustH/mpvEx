@@ -9,6 +9,8 @@ import app.windusth.mpvdanmuku.database.dao.PlaybackStateDao
 import app.windusth.mpvdanmuku.database.dao.PlaylistDao
 import app.windusth.mpvdanmuku.database.dao.RecentlyPlayedDao
 import app.windusth.mpvdanmuku.database.dao.VideoMetadataDao
+import app.windusth.mpvdanmuku.database.dao.BookmarkDao
+import app.windusth.mpvdanmuku.database.entities.BookmarkEntity
 import app.windusth.mpvdanmuku.database.entities.PlaybackStateEntity
 import app.windusth.mpvdanmuku.database.entities.PlaylistEntity
 import app.windusth.mpvdanmuku.database.entities.PlaylistItemEntity
@@ -24,8 +26,9 @@ import app.windusth.mpvdanmuku.domain.network.NetworkConnection
     NetworkConnection::class,
     PlaylistEntity::class,
     PlaylistItemEntity::class,
+    BookmarkEntity::class,
   ],
-  version = 9,
+  version = 10,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class)
@@ -39,4 +42,6 @@ abstract class MpvDanmukuDatabase : RoomDatabase() {
   abstract fun networkConnectionDao(): NetworkConnectionDao
 
   abstract fun playlistDao(): PlaylistDao
+
+  abstract fun bookmarkDao(): BookmarkDao
 }

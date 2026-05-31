@@ -464,6 +464,23 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
 }
 
 
+val MIGRATION_9_10 = object : Migration(9, 10) {
+  override fun migrate(db: SupportSQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS `bookmarks` (
+        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        `name` TEXT NOT NULL,
+        `path` TEXT NOT NULL,
+        `type` TEXT NOT NULL,
+        `connectionId` INTEGER,
+        `addedAt` INTEGER NOT NULL
+      )
+      """.trimIndent()
+    )
+  }
+}
+
 val DatabaseModule =
   module {
     single<Json> {
@@ -478,7 +495,7 @@ val DatabaseModule =
       Room
         .databaseBuilder(context, MpvDanmukuDatabase::class.java, "mpvex.db")
         .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
         .fallbackToDestructiveMigration(true) // Fallback if migration fails (last resort)
         .build()
     }
@@ -502,6 +519,10 @@ val DatabaseModule =
 
     single {
       get<MpvDanmukuDatabase>().networkConnectionDao()
+    }
+
+    single {
+      get<MpvDanmukuDatabase>().bookmarkDao()
     }
 
     single {

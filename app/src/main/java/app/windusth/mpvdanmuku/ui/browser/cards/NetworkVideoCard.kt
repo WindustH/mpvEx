@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.windusth.mpvdanmuku.preferences.AppearancePreferences
 import app.windusth.mpvdanmuku.preferences.BrowserPreferences
@@ -33,6 +34,7 @@ import app.windusth.mpvdanmuku.preferences.preference.collectAsState
 import app.windusth.mpvdanmuku.domain.network.NetworkConnection
 import app.windusth.mpvdanmuku.domain.network.NetworkFile
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.LocalConfiguration
 import org.koin.compose.koinInject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -46,6 +48,7 @@ fun NetworkVideoCard(
   modifier: Modifier = Modifier,
   onLongClick: (() -> Unit)? = null,
   isSelected: Boolean = false,
+  isGridMode: Boolean = false,
 ) {
   val appearancePreferences = koinInject<AppearancePreferences>()
   val browserPreferences = koinInject<BrowserPreferences>()
@@ -65,9 +68,9 @@ fun NetworkVideoCard(
         ),
     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
-    Row(
-      modifier =
-        Modifier
+    if (isGridMode) {
+      Column(
+        modifier = Modifier
           .fillMaxWidth()
           .background(
             if (isSelected) {
@@ -76,73 +79,138 @@ fun NetworkVideoCard(
               Color.Transparent
             },
           )
-          .padding(16.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      // Square thumbnail matching folder icon size
-      Box(
-        modifier =
-          Modifier
-            .size(thumbSizeDp)
+          .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+      ) {
+        val folderGridColumnsPortrait by browserPreferences.folderGridColumnsPortrait.collectAsState()
+        val folderGridColumnsLandscape by browserPreferences.folderGridColumnsLandscape.collectAsState()
+        val configuration = LocalConfiguration.current
+        val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val folderGridColumns = if (isLandscape) folderGridColumnsLandscape else folderGridColumnsPortrait
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
+        val horizontalPadding = 32.dp
+        val spacing = 8.dp
+
+        val thumbWidthDp = if (folderGridColumns > 1) {
+          val totalSpacing = spacing * (folderGridColumns - 1)
+          ((screenWidthDp - horizontalPadding - totalSpacing) / folderGridColumns).coerceAtLeast(120.dp)
+        } else {
+          160.dp
+        }
+        val aspect = 16f / 9f
+        val thumbHeightDp = thumbWidthDp / aspect
+        
+        Box(
+          modifier = Modifier
+            .width(thumbWidthDp)
+            .height(thumbHeightDp)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .combinedClickable(
               onClick = onClick,
               onLongClick = onLongClick,
             ),
-        contentAlignment = Alignment.Center,
-      ) {
-        // Play icon overlay
-        Icon(
-          Icons.Filled.PlayArrow,
-          contentDescription = "Play",
-          modifier = Modifier.size(48.dp),
-          tint = MaterialTheme.colorScheme.secondary,
-        )
-      }
-      Spacer(modifier = Modifier.width(16.dp))
-      Column(
-        modifier = Modifier.weight(1f),
-      ) {
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(
+            Icons.Filled.PlayArrow,
+            contentDescription = "Play",
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.secondary,
+          )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         Text(
           file.name,
           style = MaterialTheme.typography.titleSmall,
           color = MaterialTheme.colorScheme.onSurface,
           maxLines = maxLines,
           overflow = TextOverflow.Ellipsis,
+          textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        FlowRow(
-          horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
-          verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+      }
+    } else {
+      Row(
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .background(
+              if (isSelected) {
+                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+              } else {
+                Color.Transparent
+              },
+            )
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        // Square thumbnail matching folder icon size
+        Box(
+          modifier =
+            Modifier
+              .size(thumbSizeDp)
+              .clip(RoundedCornerShape(12.dp))
+              .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+              .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+              ),
+          contentAlignment = Alignment.Center,
         ) {
-          if (showSizeChip && file.size > 0) {
-            Text(
-              formatFileSize(file.size),
-              style = MaterialTheme.typography.labelSmall,
-              modifier =
-                Modifier
-                  .background(
-                    MaterialTheme.colorScheme.surfaceContainerHigh,
-                    RoundedCornerShape(8.dp),
-                  )
-                  .padding(horizontal = 8.dp, vertical = 4.dp),
-              color = MaterialTheme.colorScheme.onSurface,
-            )
-          }
-          if (file.lastModified > 0) {
-            Text(
-              formatDate(file.lastModified),
-              style = MaterialTheme.typography.labelSmall,
-              modifier =
-                Modifier
-                  .background(
-                    MaterialTheme.colorScheme.surfaceContainerHigh,
-                    RoundedCornerShape(8.dp),
-                  )
-                  .padding(horizontal = 8.dp, vertical = 4.dp),
-              color = MaterialTheme.colorScheme.onSurface,
-            )
+          // Play icon overlay
+          Icon(
+            Icons.Filled.PlayArrow,
+            contentDescription = "Play",
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.secondary,
+          )
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(
+          modifier = Modifier.weight(1f),
+        ) {
+          Text(
+            file.name,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+          )
+          Spacer(modifier = Modifier.height(4.dp))
+          FlowRow(
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+          ) {
+            if (showSizeChip && file.size > 0) {
+              Text(
+                formatFileSize(file.size),
+                style = MaterialTheme.typography.labelSmall,
+                modifier =
+                  Modifier
+                    .background(
+                      MaterialTheme.colorScheme.surfaceContainerHigh,
+                      RoundedCornerShape(8.dp),
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                color = MaterialTheme.colorScheme.onSurface,
+              )
+            }
+            if (file.lastModified > 0) {
+              Text(
+                formatDate(file.lastModified),
+                style = MaterialTheme.typography.labelSmall,
+                modifier =
+                  Modifier
+                    .background(
+                      MaterialTheme.colorScheme.surfaceContainerHigh,
+                      RoundedCornerShape(8.dp),
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                color = MaterialTheme.colorScheme.onSurface,
+              )
+            }
           }
         }
       }
@@ -164,3 +232,4 @@ private fun formatDate(timestamp: Long): String {
   val format = SimpleDateFormat("MMM dd", Locale.getDefault())
   return format.format(date)
 }
+

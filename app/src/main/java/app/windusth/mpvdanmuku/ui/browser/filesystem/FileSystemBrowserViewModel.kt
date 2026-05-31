@@ -20,10 +20,16 @@ import app.windusth.mpvdanmuku.utils.storage.TreeViewScanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import app.windusth.mpvdanmuku.database.dao.BookmarkDao
+import app.windusth.mpvdanmuku.database.entities.BookmarkEntity
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -41,6 +47,7 @@ class FileSystemBrowserViewModel(
   private val playbackStateRepository: PlaybackStateRepository by inject()
   private val browserPreferences: BrowserPreferences by inject()
   private val appearancePreferences: app.windusth.mpvdanmuku.preferences.AppearancePreferences by inject()
+  private val bookmarkDao: BookmarkDao by inject()
 
   // Special marker for "show storage volumes" mode
   // Similar to Fossify's root/home folder detection
@@ -97,6 +104,30 @@ class FileSystemBrowserViewModel(
 
   // Track previous item count per path to detect if folder became empty
   private val itemCountByPath = mutableMapOf<String, Int>()
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  val isBookmarked: StateFlow<Boolean> = _currentPath
+    .flatMapLatest { path -> bookmarkDao.isBookmarked(path, "LOCAL", null) }
+    .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+  fun toggleBookmark(name: String) {
+    viewModelScope.launch(Dispatchers.IO) {
+      val path = _currentPath.value
+      val type = "LOCAL"
+      val isCurrentlyBookmarked = bookmarkDao.getBookmark(path, type, null) != null
+      if (isCurrentlyBookmarked) {
+        bookmarkDao.deleteBookmarkByPath(path, type, null)
+      } else {
+        bookmarkDao.insertBookmark(
+          BookmarkEntity(
+            name = name,
+            path = path,
+            type = type
+          )
+        )
+      }
+    }
+  }
 
   companion object {
     private const val TAG = "FileSystemBrowserVM"

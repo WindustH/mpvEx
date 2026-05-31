@@ -15,9 +15,16 @@ import app.windusth.mpvdanmuku.repository.NetworkRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import app.windusth.mpvdanmuku.database.dao.BookmarkDao
+import app.windusth.mpvdanmuku.database.entities.BookmarkEntity
 
 /**
  * ViewModel for browsing files on a network share
@@ -30,6 +37,7 @@ class NetworkBrowserViewModel(
 ) : AndroidViewModel(application),
   KoinComponent {
   private val repository: NetworkRepository by inject()
+  private val bookmarkDao: BookmarkDao by inject()
 
   private val _files = MutableStateFlow<List<NetworkFile>>(emptyList())
   val files: StateFlow<List<NetworkFile>> = _files.asStateFlow()
@@ -39,6 +47,28 @@ class NetworkBrowserViewModel(
 
   private val _error = MutableStateFlow<String?>(null)
   val error: StateFlow<String?> = _error.asStateFlow()
+
+  val isBookmarked: StateFlow<Boolean> = bookmarkDao.isBookmarked(currentPath, "NETWORK", connectionId)
+    .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+  fun toggleBookmark(name: String) {
+    viewModelScope.launch(Dispatchers.IO) {
+      val type = "NETWORK"
+      val isCurrentlyBookmarked = bookmarkDao.getBookmark(currentPath, type, connectionId) != null
+      if (isCurrentlyBookmarked) {
+        bookmarkDao.deleteBookmarkByPath(currentPath, type, connectionId)
+      } else {
+        bookmarkDao.insertBookmark(
+          BookmarkEntity(
+            name = name,
+            path = currentPath,
+            type = type,
+            connectionId = connectionId
+          )
+        )
+      }
+    }
+  }
 
   /**
    * Load files in the current directory

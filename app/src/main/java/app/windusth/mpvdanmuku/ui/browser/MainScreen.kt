@@ -284,9 +284,20 @@ object MainScreen : Screen {
           ) {
             when (targetTab) {
               0 -> FolderListScreen.Content()
-              1 -> RecentlyPlayedScreen.Content()
-              2 -> PlaylistScreen.Content()
-              3 -> NetworkStreamingScreen.Content()
+              1 -> app.windusth.mpvdanmuku.ui.browser.bookmarks.BookmarksScreen.Content()
+              2 -> RecentlyPlayedScreen.Content()
+              3 -> PlaylistScreen.Content()
+              4 -> NetworkStreamingScreen.Content()
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// CompositionLocal for navigation bar height
+val LocalNavigationBarHeight = compositionLocalOf { 0.dp }reen.Content()
             }
           }
         }

@@ -9,6 +9,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
@@ -28,12 +33,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.windusth.mpvdanmuku.database.dao.NetworkConnectionDao
 import app.windusth.mpvdanmuku.domain.network.NetworkConnection
 import app.windusth.mpvdanmuku.domain.network.NetworkFile
+import app.windusth.mpvdanmuku.preferences.BrowserPreferences
+import app.windusth.mpvdanmuku.preferences.MediaLayoutMode
 import app.windusth.mpvdanmuku.preferences.preference.collectAsState
 import app.windusth.mpvdanmuku.presentation.Screen
 import app.windusth.mpvdanmuku.presentation.components.pullrefresh.PullRefreshBox
@@ -45,7 +53,9 @@ import app.windusth.mpvdanmuku.ui.preferences.PreferencesScreen
 import app.windusth.mpvdanmuku.ui.utils.LocalBackStack
 import kotlinx.serialization.Serializable
 import my.nanihadesuka.compose.LazyColumnScrollbar
+import my.nanihadesuka.compose.LazyVerticalGridScrollbar
 import my.nanihadesuka.compose.ScrollbarSettings
+import org.koin.compose.koinInject
 
 @Serializable
 data class NetworkBrowserScreen(
@@ -99,6 +109,19 @@ data class NetworkBrowserScreen(
           onSearchClick = null,
           onSettingsClick = {
             backstack.add(app.windusth.mpvdanmuku.ui.preferences.PreferencesScreen)
+          },
+          additionalActions = {
+            androidx.compose.material3.IconButton(
+              onClick = { viewModel.toggleBookmark(connectionName) },
+              modifier = Modifier.padding(horizontal = 2.dp)
+            ) {
+              androidx.compose.material3.Icon(
+                imageVector = if (isBookmarked) androidx.compose.material.icons.Icons.Filled.Star else androidx.compose.material.icons.Icons.Outlined.StarOutline,
+                contentDescription = "Bookmark",
+                modifier = Modifier.size(24.dp),
+                tint = if (isBookmarked) androidx.compose.material3.MaterialTheme.colorScheme.primary else androidx.compose.material3.MaterialTheme.colorScheme.secondary
+              )
+            }
           },
           onDeleteClick = null,
           onRenameClick = null,
@@ -154,6 +177,9 @@ private fun NetworkBrowserContent(
   // Load connection details
   val dao = org.koin.compose.koinInject<NetworkConnectionDao>()
   var connection by remember { mutableStateOf<NetworkConnection?>(null) }
+  
+  val browserPreferences = org.koin.compose.koinInject<BrowserPreferences>()
+  val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState(initial = MediaLayoutMode.LIST)
 
   LaunchedEffect(connectionId) {
     connection = dao.getConnectionById(connectionId)
@@ -203,7 +229,7 @@ private fun NetworkBrowserContent(
     else -> {
       val folders = files.filter { it.isDirectory }
       val videos = files.filter { !it.isDirectory && it.mimeType?.startsWith("video/") == true }
-      val networkListState = LazyListState()
+      val networkListState = remember { LazyListState() }
 
       // Check if at top of list to hide scrollbar during pull-to-refresh
       val isAtTop by remember {
@@ -234,67 +260,159 @@ private fun NetworkBrowserContent(
             .fillMaxSize()
             .padding(bottom = navigationBarHeight)
         ) {
-          LazyColumnScrollbar(
-            state = networkListState,
-            settings = ScrollbarSettings(
-              thumbUnselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f * scrollbarAlpha),
-              thumbSelectedColor = MaterialTheme.colorScheme.primary.copy(alpha = scrollbarAlpha),
-            ),
-          ) {
-            LazyColumn(
-              state = networkListState,
-              modifier = Modifier.fillMaxSize(),
-              contentPadding = PaddingValues(
-                start = 8.dp,
-                end = 8.dp,
-                top = 8.dp,
-                bottom = navigationBarHeight
-              ),
-            ) {
-            // Folders section
-            if (folders.isNotEmpty()) {
-              item {
-                Text(
-                  text = "Folders",
-                  style = MaterialTheme.typography.titleMedium,
-                  color = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
-                )
-              }
-              items(
-                items = folders,
-                key = { it.path },
-              ) { folder ->
-                NetworkFolderCard(
-                  file = folder,
-                  onClick = { onFolderClick(folder) },
-                  modifier = Modifier,
-                )
+          if (mediaLayoutMode == MediaLayoutMode.GRID) {
+            val gridState = rememberLazyGridState()
+            val isGridAtTop by remember {
+              derivedStateOf {
+                gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
               }
             }
 
-            // Videos section
-            if (videos.isNotEmpty()) {
-              item {
-                Text(
-                  text = "Videos",
-                  style = MaterialTheme.typography.titleMedium,
-                  color = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                )
+            val scrollbarGridAlpha by androidx.compose.animation.core.animateFloatAsState(
+              targetValue = if (isGridAtTop || !hasEnoughItems) 0f else 1f,
+              animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
+              label = "scrollbarGridAlpha",
+            )
+            
+            val folderGridColumnsPortrait by browserPreferences.folderGridColumnsPortrait.collectAsState()
+            val folderGridColumnsLandscape by browserPreferences.folderGridColumnsLandscape.collectAsState()
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            val folderGridColumns = if (isLandscape) folderGridColumnsLandscape else folderGridColumnsPortrait
+
+            LazyVerticalGridScrollbar(
+              state = gridState,
+              settings = ScrollbarSettings(
+                thumbUnselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f * scrollbarGridAlpha),
+                thumbSelectedColor = MaterialTheme.colorScheme.primary.copy(alpha = scrollbarGridAlpha),
+              ),
+            ) {
+              LazyVerticalGrid(
+                columns = GridCells.Fixed(folderGridColumns),
+                state = gridState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                  start = 8.dp,
+                  end = 8.dp,
+                  top = 8.dp,
+                  bottom = navigationBarHeight
+                ),
+              ) {
+                // Folders section
+                if (folders.isNotEmpty()) {
+                  item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                      text = "Folders",
+                      style = MaterialTheme.typography.titleMedium,
+                      color = MaterialTheme.colorScheme.primary,
+                      modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+                    )
+                  }
+                  items(
+                    items = folders,
+                    key = { it.path },
+                  ) { folder ->
+                    NetworkFolderCard(
+                      file = folder,
+                      onClick = { onFolderClick(folder) },
+                      modifier = Modifier,
+                      isGridMode = true,
+                    )
+                  }
+                }
+
+                // Videos section
+                if (videos.isNotEmpty()) {
+                  item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                      text = "Videos",
+                      style = MaterialTheme.typography.titleMedium,
+                      color = MaterialTheme.colorScheme.primary,
+                      modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
+                    )
+                  }
+                  items(
+                    items = videos,
+                    key = { it.path },
+                  ) { video ->
+                    connection?.let { conn ->
+                      NetworkVideoCard(
+                        file = video,
+                        connection = conn,
+                        onClick = { onVideoClick(video) },
+                        modifier = Modifier,
+                        isGridMode = true,
+                      )
+                    }
+                  }
+                }
               }
-              items(
-                items = videos,
-                key = { it.path },
-              ) { video ->
-                // Only show card if connection is loaded
-                connection?.let { conn ->
-                  NetworkVideoCard(
-                    file = video,
-                    connection = conn,
-                    onClick = { onVideoClick(video) },
-                    modifier = Modifier,
-                  )
+            }
+          } else {
+            LazyColumnScrollbar(
+              state = networkListState,
+              settings = ScrollbarSettings(
+                thumbUnselectedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f * scrollbarAlpha),
+                thumbSelectedColor = MaterialTheme.colorScheme.primary.copy(alpha = scrollbarAlpha),
+              ),
+            ) {
+              LazyColumn(
+                state = networkListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                  start = 8.dp,
+                  end = 8.dp,
+                  top = 8.dp,
+                  bottom = navigationBarHeight
+                ),
+              ) {
+                // Folders section
+                if (folders.isNotEmpty()) {
+                  item {
+                    Text(
+                      text = "Folders",
+                      style = MaterialTheme.typography.titleMedium,
+                      color = MaterialTheme.colorScheme.primary,
+                      modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+                    )
+                  }
+                  items(
+                    items = folders,
+                    key = { it.path },
+                  ) { folder ->
+                    NetworkFolderCard(
+                      file = folder,
+                      onClick = { onFolderClick(folder) },
+                      modifier = Modifier,
+                      isGridMode = false,
+                    )
+                  }
+                }
+
+                // Videos section
+                if (videos.isNotEmpty()) {
+                  item {
+                    Text(
+                      text = "Videos",
+                      style = MaterialTheme.typography.titleMedium,
+                      color = MaterialTheme.colorScheme.primary,
+                      modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
+                    )
+                  }
+                  items(
+                    items = videos,
+                    key = { it.path },
+                  ) { video ->
+                    connection?.let { conn ->
+                      NetworkVideoCard(
+                        file = video,
+                        connection = conn,
+                        onClick = { onVideoClick(video) },
+                        modifier = Modifier,
+                        isGridMode = false,
+                      )
+                    }
+                  }
                 }
               }
             }
@@ -303,5 +421,4 @@ private fun NetworkBrowserContent(
       }
     }
   }
-}
 }
