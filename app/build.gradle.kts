@@ -189,7 +189,7 @@ val prepareMpvAndroidLib by tasks.registering(org.gradle.api.tasks.Exec::class) 
 
   val sdkRoot = System.getenv("ANDROID_SDK_ROOT")
     ?: System.getenv("ANDROID_HOME")
-    ?: rootProject.layout.projectDirectory.dir("../android-sdk").asFile.absolutePath
+    ?: rootProject.layout.projectDirectory.dir(".android-sdk").asFile.absolutePath
   val javaHome = System.getenv("JAVA_HOME") ?: "/usr/lib/jvm/java-21-openjdk"
   environment("ANDROID_SDK_ROOT", sdkRoot)
   environment("ANDROID_HOME", sdkRoot)

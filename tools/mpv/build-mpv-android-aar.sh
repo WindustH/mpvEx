@@ -104,8 +104,8 @@ require_cmd mkdir
 require_cmd rm
 
 ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
-if [ -z "$ANDROID_SDK_ROOT" ] && [ -d "$ROOT_DIR/../android-sdk" ]; then
-  ANDROID_SDK_ROOT="$(cd "$ROOT_DIR/../android-sdk" && pwd)"
+if [ -z "$ANDROID_SDK_ROOT" ] && [ -d "$ROOT_DIR/.android-sdk" ]; then
+  ANDROID_SDK_ROOT="$(cd "$ROOT_DIR/.android-sdk" && pwd)"
 fi
 [ -n "$ANDROID_SDK_ROOT" ] || die "set ANDROID_HOME or ANDROID_SDK_ROOT to your Android SDK"
 [ -d "$ANDROID_SDK_ROOT" ] || die "Android SDK not found: $ANDROID_SDK_ROOT"

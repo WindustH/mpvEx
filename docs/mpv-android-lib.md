@@ -7,8 +7,10 @@ that recreates it from source.
 The default build path is:
 
 ```sh
-ANDROID_HOME=/path/to/android-sdk ./gradlew :app:prepareMpvAndroidLib
+source tools/env.sh && ./gradlew :app:prepareMpvAndroidLib
 ```
+
+`tools/env.sh` sets `ANDROID_HOME` (to `.android-sdk/` inside the project), `JAVA_HOME`, and `GRADLE_USER_HOME` (to `.gradle-local/`).
 
 Normal app builds also depend on `:app:prepareMpvAndroidLib`. If the AAR already
 exists locally, the task is skipped. If it is missing, Gradle runs:
