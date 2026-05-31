@@ -166,7 +166,6 @@ object DecoderPreferencesScreen : Screen {
 
               PreferenceDivider()
 
-              // val useVulkan by preferences.useVulkan.collectAsState() // Moved up for gpuNext logic
               SwitchPreference(
                 value = useVulkan,
                 onValueChange = { enabled ->

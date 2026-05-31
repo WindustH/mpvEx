@@ -236,7 +236,7 @@ fun PermissionDeniedState(
   // Explanation Dialog
   if (showExplanationDialog) {
     val uriHandler = LocalUriHandler.current
-    val githubUrl = "https://github.com/marlboro-advance/mpvex"
+    val githubUrl = "https://github.com/WindustH/mpvDanmuku"
 
     AlertDialog(
       onDismissRequest = { showExplanationDialog = false },
@@ -265,7 +265,7 @@ fun PermissionDeniedState(
           if (isPlayStoreBuild) {
             // Play Store build explanation
             Text(
-              text = "mpvEx needs access to your video files to provide its core functionality as a media player.",
+              text = "mpvDanmuku needs access to your video files to provide its core functionality as a media player.",
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -295,7 +295,7 @@ fun PermissionDeniedState(
           } else {
             // Standard build explanation
             Text(
-              text = "mpvEx has always required storage access permission as it's essential for the app to find all media and subtitle files on your device, including the ones that are not supported by the system.",
+              text = "mpvDanmuku has always required storage access permission as it's essential for the app to find all media and subtitle files on your device, including the ones that are not supported by the system.",
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -314,7 +314,7 @@ fun PermissionDeniedState(
           }
 
           Text(
-            text = "mpvEx is an open source project. You can review the source code and verify how permissions are used by visiting our GitHub repository at:",
+            text = "mpvDanmuku is an open source project. You can review the source code and verify how permissions are used by visiting our GitHub repository at:",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )

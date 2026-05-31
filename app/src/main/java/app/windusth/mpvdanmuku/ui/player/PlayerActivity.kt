@@ -196,12 +196,6 @@ class PlayerActivity :
   private var playlistId: Int? = null
 
   /**
-   * Tracks the starting offset of the loaded playlist window in the full playlist.
-   * Used for windowed loading to prevent ANR with large playlists.
-   */
-  private var playlistWindowOffset: Int = 0
-
-  /**
    * Total count of items in the full playlist (when using windowed loading).
    * -1 means unknown or not using windowed loading.
    */
@@ -401,7 +395,6 @@ class PlayerActivity :
 
           withContext(Dispatchers.Main) {
             playlist = items
-            playlistWindowOffset = 0
             playlistTotalCount = totalCount
             Log.d(TAG, "Loaded all $totalCount items from playlist $pid (isM3U: $isM3uPlaylist)")
             // Re-initialize shuffle now that playlist is available
@@ -1427,9 +1420,7 @@ class PlayerActivity :
    * Handles configuration changes by updating video aspect ratio.
    */
   private fun handleConfigurationChange() {
-    if (!isInPictureInPictureMode) {
-      // Configuration changes don't affect aspect ratio
-    } else {
+    if (isInPictureInPictureMode) {
       viewModel.hideControls()
     }
   }
@@ -2367,7 +2358,6 @@ class PlayerActivity :
       val newPlaylistId = intent.getIntExtra("playlist_id", -1).takeIf { it != -1 }
       playlistId = newPlaylistId
       playlistIndex = intent.getIntExtra("playlist_index", 0)
-      playlistWindowOffset = 0
       playlistTotalCount = -1
       playlist = playlistFromIntent
     }
@@ -3445,6 +3435,6 @@ class PlayerActivity :
     /**
      * General tag for logging from PlayerActivity.
      */
-    const val TAG = "mpvex"
+    const val TAG = "mpvDanmuku"
   }
 }

@@ -1,6 +1,5 @@
 package app.windusth.mpvdanmuku.ui.preferences
 
-// import androidx.compose.material.icons.outlined.VideoLabel // No longer needed here
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box

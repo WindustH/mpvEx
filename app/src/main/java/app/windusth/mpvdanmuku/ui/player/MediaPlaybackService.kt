@@ -38,7 +38,7 @@ class MediaPlaybackService :
   companion object {
     private const val TAG = "MediaPlaybackService"
     private const val NOTIFICATION_ID = 1
-    private const val NOTIFICATION_CHANNEL_ID = "mpvex_playback_channel"
+    private const val NOTIFICATION_CHANNEL_ID = "mpvdanmuku_playback_channel"
 
     @Volatile
     internal var thumbnail: Bitmap? = null

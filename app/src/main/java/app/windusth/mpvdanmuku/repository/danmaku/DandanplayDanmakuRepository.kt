@@ -623,7 +623,7 @@ class DandanplayDanmakuRepository(
 
     private const val CHUNK_SIZE = 16L * 1024L * 1024L
     const val API_SERVER = "https://api.dandanplay.net"
-    const val USER_AGENT = "mpvEx/1.0"
+    const val USER_AGENT = "mpvDanmuku/1.0"
     const val APP_ID = "gz2wnihj9d"
     const val APP_SECRET = "qo9N3YVARNZc7MWHce7v92q1SUe5uYJ8"
     const val DUMMY_HASH = "a1b2c3d4e5f67890abcd1234ef567890"

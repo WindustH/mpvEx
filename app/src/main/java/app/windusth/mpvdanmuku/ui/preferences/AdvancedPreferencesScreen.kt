@@ -445,7 +445,7 @@ object AdvancedPreferencesScreen : Screen {
           item {
             PreferenceCard {
               var isConfirmDialogShown by remember { mutableStateOf(false) }
-              val mpvexDatabase = koinInject<MpvDanmukuDatabase>()
+              val database = koinInject<MpvDanmukuDatabase>()
               val enableRecentlyPlayed by preferences.enableRecentlyPlayed.collectAsState()
               
               SwitchPreference(
@@ -474,7 +474,7 @@ object AdvancedPreferencesScreen : Screen {
                   onConfirm = {
                     scope.launch(Dispatchers.IO) {
                       runCatching {
-                        mpvexDatabase.videoDataDao().clearAllPlaybackStates()
+                        database.videoDataDao().clearAllPlaybackStates()
                         RecentlyPlayedOps.clearAll()
                       }.onSuccess {
                         withContext(Dispatchers.Main) {
