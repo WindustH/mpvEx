@@ -177,9 +177,12 @@ class PlayerViewModel(
   val currentVolume = MutableStateFlow(host.audioManager.getStreamVolume(AudioManager.STREAM_MUSIC))
   private val volumeBoostCap by MPVLib.propInt["volume-max"].collectAsState(viewModelScope)
 
+  private var positionPollJob: Job? = null
+  private var durationPollJob: Job? = null
+
   init {
     // Poll precise position only when playing
-    viewModelScope.launch {
+    positionPollJob = viewModelScope.launch {
       while (isActive) {
         val time = MPVLib.getPropertyDouble("time-pos")
         if (time != null) {
@@ -190,7 +193,7 @@ class PlayerViewModel(
     }
 
     // Update precise duration when the integer duration changes (avoid polling)
-    viewModelScope.launch {
+    durationPollJob = viewModelScope.launch {
       MPVLib.propInt["duration"].collect { _ ->
         val dur = MPVLib.getPropertyDouble("duration")
         if (dur != null && dur > 0) {
@@ -880,6 +883,13 @@ class PlayerViewModel(
     val query = _danmakuState.value.searchQuery
     danmakuPreferences.enabled.set(false)
     _danmakuState.value = DanmakuUiState(searchQuery = query)
+  }
+
+  fun prepareForMpvShutdown() {
+    positionPollJob?.cancel()
+    positionPollJob = null
+    durationPollJob?.cancel()
+    durationPollJob = null
   }
 
   fun loginDanmaku(userName: String, password: String) {

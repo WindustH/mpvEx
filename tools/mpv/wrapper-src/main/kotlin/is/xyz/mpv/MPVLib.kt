@@ -15,10 +15,12 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Suppress("unused")
 object MPVLib {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val propertyReadsEnabled = AtomicBoolean(false)
 
     init {
         arrayOf("mpv", "player").forEach { System.loadLibrary(it) }
@@ -46,6 +48,26 @@ object MPVLib {
     external fun setPropertyString(property: String, value: String)
 
     external fun observeProperty(property: String, format: Int)
+
+    @JvmStatic
+    fun enablePropertyReads() {
+        propertyReadsEnabled.set(true)
+        propInt.observeExisting()
+        propLong.observeExisting()
+        propBoolean.observeExisting()
+        propString.observeExisting()
+        propDouble.observeExisting()
+        propFloat.observeExisting()
+        propNode.observeExisting()
+    }
+
+    @JvmStatic
+    fun disablePropertyReads() {
+        propertyReadsEnabled.set(false)
+    }
+
+    @JvmStatic
+    fun isMpvAvailable(): Boolean = propertyReadsEnabled.get()
 
     fun commandNode(vararg cmd: String): MPVNode? {
         command(*cmd)
@@ -91,21 +113,25 @@ object MPVLib {
             val previous = states.putIfAbsent(property, state)
             if (previous != null) return previous
 
-            if (!poll) {
-                runCatching { MPVLib.observeProperty(property, type) }
-            } else {
+            if (poll) {
                 MPVLib.scope.launch {
                     while (true) {
-                        state.value = read(property)
+                        if (MPVLib.isMpvAvailable()) {
+                            state.value = read(property)
+                        }
                         delay(500)
                     }
                 }
+            } else if (MPVLib.isMpvAvailable()) {
+                runCatching { MPVLib.observeProperty(property, type) }
             }
             return state
         }
 
         operator fun set(property: String, value: T) {
-            setter?.invoke(property, value)
+            if (MPVLib.isMpvAvailable()) {
+                setter?.invoke(property, value)
+            }
             emit(property, value)
         }
 
@@ -117,7 +143,20 @@ object MPVLib {
             states[property]?.value = read(property)
         }
 
-        private fun read(property: String): T? = runCatching { getter(property) }.getOrNull()
+        fun observeExisting() {
+            if (!poll && MPVLib.isMpvAvailable()) {
+                states.keys.forEach { property ->
+                    runCatching { MPVLib.observeProperty(property, type) }
+                }
+            }
+        }
+
+        private fun read(property: String): T? =
+            if (MPVLib.isMpvAvailable()) {
+                runCatching { getter(property) }.getOrNull()
+            } else {
+                null
+            }
     }
 
     val propInt = Property(MpvFormat.MPV_FORMAT_INT64, ::getPropertyInt, ::setPropertyInt)

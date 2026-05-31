@@ -91,13 +91,15 @@ class MediaPlaybackService :
     
     // Only add MPV observer if MPV is initialized
     try {
-      MPVLib.addObserver(this)
-      // Observe properties
-      MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
-      MPVLib.observeProperty("media-title", MPVLib.MpvFormat.MPV_FORMAT_STRING)
-      MPVLib.observeProperty("metadata/artist", MPVLib.MpvFormat.MPV_FORMAT_STRING)
-      MPVLib.observeProperty("time-pos", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
-      Log.d(TAG, "MPV observer registered")
+      if (MPVLib.isMpvAvailable()) {
+        MPVLib.addObserver(this)
+        // Observe properties
+        MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
+        MPVLib.observeProperty("media-title", MPVLib.MpvFormat.MPV_FORMAT_STRING)
+        MPVLib.observeProperty("metadata/artist", MPVLib.MpvFormat.MPV_FORMAT_STRING)
+        MPVLib.observeProperty("time-pos", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
+        Log.d(TAG, "MPV observer registered")
+      }
     } catch (e: Exception) {
       Log.e(TAG, "Error registering MPV observer", e)
     }
@@ -129,12 +131,12 @@ class MediaPlaybackService :
     }
 
     // Fallback: Read current state from MPV if not provided via intent
-    if (mediaTitle.isBlank()) {
-      mediaTitle = MPVLib.getPropertyString("media-title") ?: ""
-      mediaArtist = MPVLib.getPropertyString("metadata/artist") ?: ""
+    if (mediaTitle.isBlank() && MPVLib.isMpvAvailable()) {
+      mediaTitle = runCatching { MPVLib.getPropertyString("media-title") }.getOrNull() ?: ""
+      mediaArtist = runCatching { MPVLib.getPropertyString("metadata/artist") }.getOrNull() ?: ""
     }
     
-    paused = MPVLib.getPropertyBoolean("pause") == true
+    paused = MPVLib.isMpvAvailable() && runCatching { MPVLib.getPropertyBoolean("pause") }.getOrNull() == true
 
     updateMediaSession()
 
@@ -187,11 +189,13 @@ class MediaPlaybackService :
           object : MediaSessionCompat.Callback() {
             override fun onPlay() {
               Log.d(TAG, "onPlay called")
+              if (!MPVLib.isMpvAvailable()) return
               MPVLib.setPropertyBoolean("pause", false)
             }
 
             override fun onPause() {
               Log.d(TAG, "onPause called")
+              if (!MPVLib.isMpvAvailable()) return
               MPVLib.setPropertyBoolean("pause", true)
             }
 
@@ -202,6 +206,7 @@ class MediaPlaybackService :
 
             override fun onSkipToNext() {
               Log.d(TAG, "onSkipToNext called")
+              if (!MPVLib.isMpvAvailable()) return
               // Use precise seeking for videos shorter than 2 minutes (120 seconds) or if preference is enabled
               val duration = MPVLib.getPropertyInt("duration") ?: 0
               val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get() || duration < 120
@@ -211,6 +216,7 @@ class MediaPlaybackService :
 
             override fun onSkipToPrevious() {
               Log.d(TAG, "onSkipToPrevious called")
+              if (!MPVLib.isMpvAvailable()) return
               // Use precise seeking for videos shorter than 2 minutes (120 seconds) or if preference is enabled
               val duration = MPVLib.getPropertyInt("duration") ?: 0
               val shouldUsePreciseSeeking = playerPreferences.usePreciseSeeking.get() || duration < 120
@@ -220,6 +226,7 @@ class MediaPlaybackService :
 
             override fun onSeekTo(pos: Long) {
               Log.d(TAG, "onSeekTo called: $pos")
+              if (!MPVLib.isMpvAvailable()) return
               MPVLib.setPropertyDouble("time-pos", pos / 1000.0)
             }
           },
@@ -242,9 +249,13 @@ class MediaPlaybackService :
       val title = mediaTitle.ifBlank { "Unknown Video" }
       
       // Update metadata
-      val duration = runCatching { 
-        MPVLib.getPropertyDouble("duration")?.times(1000)?.toLong() 
-      }.getOrNull() ?: 0L
+      val duration = if (MPVLib.isMpvAvailable()) {
+        runCatching {
+          MPVLib.getPropertyDouble("duration")?.times(1000)?.toLong()
+        }.getOrNull() ?: 0L
+      } else {
+        0L
+      }
       
       val metadataBuilder =
         MediaMetadataCompat
@@ -261,9 +272,13 @@ class MediaPlaybackService :
       mediaSession.setMetadata(metadataBuilder.build())
 
       // Update playback state
-      val position = runCatching { 
-        MPVLib.getPropertyDouble("time-pos")?.times(1000)?.toLong() 
-      }.getOrNull() ?: 0L
+      val position = if (MPVLib.isMpvAvailable()) {
+        runCatching {
+          MPVLib.getPropertyDouble("time-pos")?.times(1000)?.toLong()
+        }.getOrNull() ?: 0L
+      } else {
+        0L
+      }
       
       val state = if (paused) PlaybackStateCompat.STATE_PAUSED else PlaybackStateCompat.STATE_PLAYING
 
@@ -377,6 +392,7 @@ class MediaPlaybackService :
     property: String,
     value: Boolean,
   ) {
+    if (!MPVLib.isMpvAvailable()) return
     if (property == "pause") {
       paused = value
       updateMediaSession()
@@ -387,6 +403,7 @@ class MediaPlaybackService :
     property: String,
     value: String,
   ) {
+    if (!MPVLib.isMpvAvailable()) return
     when (property) {
       "media-title" -> {
         if (value.isNotBlank()) {
@@ -405,6 +422,7 @@ class MediaPlaybackService :
     property: String,
     value: Double,
   ) {
+    if (!MPVLib.isMpvAvailable()) return
     if (property == "time-pos") {
       // Throttle notification updates to avoid excessive updates
       val currentTime = System.currentTimeMillis()
@@ -482,12 +500,14 @@ class MediaPlaybackService :
   override fun onTaskRemoved(rootIntent: Intent?) {
     Log.d(TAG, "Task removed - killing playback and cleaning up service")
     try {
-      // Kill MPV playback immediately when task is removed
+      // Pause MPV playback when task is removed instead of quitting, to let Activity handle safe shutdown
       try {
-        MPVLib.command("quit")
-        Log.d(TAG, "MPV quit command sent")
+        if (MPVLib.isMpvAvailable()) {
+          MPVLib.setPropertyBoolean("pause", true)
+          Log.d(TAG, "MPV paused on task removed")
+        }
       } catch (e: Exception) {
-        Log.e(TAG, "Error sending quit command to MPV", e)
+        Log.e(TAG, "Error pausing MPV on task removed", e)
       }
       
       // Stop foreground and remove notification when task is removed
@@ -515,13 +535,8 @@ class MediaPlaybackService :
       
       // Stop the service which will trigger cleanup
       stopSelf()
-      
-      // Force kill the process to ensure everything stops
-      android.os.Process.killProcess(android.os.Process.myPid())
     } catch (e: Exception) {
       Log.e(TAG, "Error in onTaskRemoved", e)
-      // Force kill even if there's an error
-      android.os.Process.killProcess(android.os.Process.myPid())
     }
     super.onTaskRemoved(rootIntent)
   }

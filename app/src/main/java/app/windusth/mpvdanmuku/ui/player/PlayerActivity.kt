@@ -225,7 +225,33 @@ class PlayerActivity :
   private var noisyReceiverRegistered = false
   private var mpvInitialized = false // Track MPV initialization state
   private var savePlaybackStateJob: kotlinx.coroutines.Job? = null // Track ongoing save job
+
+  private var isDestroyingPlayer = false // Separate flag for destroying vs playback ready
+  val isDestroying get() = isDestroyingPlayer
+  private val mpvShutdownStarted = java.util.concurrent.atomic.AtomicBoolean(false)
   private var wasPlayingBeforePause = false // Track if video was playing before pause
+
+  private data class PlaybackStateSnapshot(
+    val mediaIdentifier: String,
+    val mediaTitle: String,
+    val currentPosition: Int,
+    val duration: Int,
+    val playbackSpeed: Double,
+    val videoZoom: Float,
+    val sid: Int,
+    val secondarySid: Int,
+    val subDelay: Int,
+    val subSpeed: Double,
+    val aid: Int,
+    val audioDelay: Int,
+    val externalSubtitles: String,
+  )
+
+  internal fun shouldIgnoreMpvCallbacks(): Boolean =
+    isDestroyingPlayer || player.isExiting || isFinishing || !mpvInitialized
+
+  private fun canReadMpvState(): Boolean =
+    mpvInitialized && !player.isExiting && !isDestroyingPlayer && !mpvShutdownStarted.get() && MPVLib.isMpvAvailable()
 
   // ==================== Background Playback ====================
 
@@ -298,18 +324,24 @@ class PlayerActivity :
           // Save current state to restore later
           val oldRestore = restoreAudioFocus
           val wasPlayerPaused = viewModel.paused ?: false
-          viewModel.pause()
+          if (canReadMpvState()) {
+            viewModel.pause()
+          }
           restoreAudioFocus = {
             oldRestore()
-            if (!wasPlayerPaused) viewModel.unpause()
+            if (!wasPlayerPaused && canReadMpvState()) viewModel.unpause()
           }
         }
 
         AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
           // Lower volume temporarily
-          MPVLib.command("multiply", "volume", "0.5")
+          if (canReadMpvState()) {
+            MPVLib.command("multiply", "volume", "0.5")
+          }
           restoreAudioFocus = {
-            MPVLib.command("multiply", "volume", "2")
+            if (canReadMpvState()) {
+              MPVLib.command("multiply", "volume", "2")
+            }
           }
         }
 
@@ -561,8 +593,17 @@ class PlayerActivity :
     Log.d(TAG, "PlayerActivity onDestroy")
 
     runCatching {
-      // OPTIMIZATION: Prevent any further UI updates or callbacks
+      // Prevent any further UI updates or callbacks
       isReady = false
+      isDestroyingPlayer = true
+
+      // Stop Compose composition first to cancel all collectAsState/LaunchedEffect
+      runCatching {
+        binding.controls.disposeComposition()
+      }
+
+      // Cancel ViewModel position polling to stop reading MPV properties
+      viewModel.prepareForMpvShutdown()
 
       // Only stop the service if we're not doing manual background playback
       if ((isUserFinishing || isFinishing) && !isManualBackgroundPlayback) {
@@ -580,10 +621,10 @@ class PlayerActivity :
       savePlaybackStateJob?.let { job ->
         Log.d(TAG, "Waiting for save playback state job to complete...")
         runCatching {
-          // Use runBlocking to ensure we wait for the job to finish
-          // This is safe here as onDestroy is already on the main thread
           kotlinx.coroutines.runBlocking {
-            job.join()
+            kotlinx.coroutines.withTimeoutOrNull(500) {
+              job.join()
+            }
           }
         }
         Log.d(TAG, "Save playback state job completed")
@@ -602,38 +643,28 @@ class PlayerActivity :
 
   private fun cleanupMPV() {
     if (!mpvInitialized) return
+    if ((!isFinishing && !isUserFinishing) || isManualBackgroundPlayback) return
+    if (!mpvShutdownStarted.compareAndSet(false, true)) return
 
+    isDestroyingPlayer = true
     player.isExiting = true
+    viewModel.prepareForMpvShutdown()
 
-    // Stop media notification service when activity is destroyed
+    runCatching { MPVLib.disablePropertyReads() }
+
+    runCatching { MPVLib.removeObserver(playerObserver) }
+
     endBackgroundPlayback()
 
-    // Don't cleanup MPV if we're doing manual background playback
-    if (!isFinishing || isManualBackgroundPlayback) return
-
     runCatching {
-      MPVLib.removeObserver(playerObserver)
-
-      if (isReady) {
-        // Pause playback first to reduce thread activity
-        MPVLib.setPropertyBoolean("pause", true)
-
-        // Send quit command to gracefully shut down MPV
-        MPVLib.command("quit")
-
-        // Wait briefly for MPV to process quit and clean up internal threads
-        // This prevents race conditions where hardware UI threads try to access
-        // mutexes/queues that are destroyed by MPVLib.destroy()
-        // We use a short blocking wait here as onDestroy is already on the main thread
-        // and this ensures proper cleanup before activity destruction
-        Thread.sleep(100)
-      }
-
-      // Now safe to destroy MPV as internal threads have had time to shut down
-      MPVLib.destroy()
+      MPVLib.setPropertyBoolean("pause", true)
+      MPVLib.command("quit")
+      Thread.sleep(100)
+      player.destroy()
       mpvInitialized = false
     }.onFailure { e ->
       Log.e(TAG, "Error cleaning up MPV", e)
+      mpvInitialized = false
     }
   }
 
@@ -664,11 +695,9 @@ class PlayerActivity :
       val shouldPause = (!audioPreferences.automaticBackgroundPlayback.get() && !isManualBackgroundPlayback) || 
                         (isUserFinishing && !isManualBackgroundPlayback)
 
-      // OPTIMIZATION: Stop playback immediately if finishing to reduce cleanup overhead
+      // OPTIMIZATION: Pause playback if finishing
       if (isFinishing && !isManualBackgroundPlayback) {
         viewModel.pause()
-        // Tell MPV to stop processing to reduce busywork during cleanup
-        MPVLib.command("stop")
       } else if (!isInPip && shouldPause) {
         wasPlayingBeforePause = !(viewModel.paused ?: true)
         viewModel.pause()
@@ -693,10 +722,8 @@ class PlayerActivity :
   @RequiresApi(Build.VERSION_CODES.P)
   override fun finish() {
     runCatching {
-      // Don't restore UI during normal finish to prevent flickering
-      // System will handle UI restoration automatically
-      isReady = false
-      
+      isUserFinishing = true
+
       // Clean up service when finishing
       if (serviceBound || mediaPlaybackService != null) {
         endBackgroundPlayback()
@@ -1421,12 +1448,11 @@ class PlayerActivity :
     property: String,
     value: Long,
   ) {
+    if (shouldIgnoreMpvCallbacks()) return
+
     when (property) {
       "video-params/w",
       "video-params/h" -> {
-        // Safety check: don't access MPV during cleanup
-        if (!mpvInitialized || player.isExiting || isFinishing) return
-
         val aspect = player.getVideoOutAspect()
         Log.d(TAG, "Video dimension changed: $property, aspect: $aspect")
         pipHelper.updatePictureInPictureParams()
@@ -1450,6 +1476,8 @@ class PlayerActivity :
     property: String,
     value: Boolean,
   ) {
+    if (shouldIgnoreMpvCallbacks()) return
+
     when (property) {
       "pause" -> {
         handlePauseStateChange(value)
@@ -1552,6 +1580,8 @@ class PlayerActivity :
     property: String,
     value: MPVNode,
   ) {
+    if (shouldIgnoreMpvCallbacks()) return
+
     // Currently no MPVNode properties are handled
   }
 
@@ -1568,12 +1598,11 @@ class PlayerActivity :
     property: String,
     value: Double,
   ) {
+    if (shouldIgnoreMpvCallbacks()) return
+
     // Handle Double properties
     when (property) {
       "video-params/aspect" -> {
-        // Safety check: don't access MPV during cleanup
-        if (!mpvInitialized || player.isExiting || isFinishing) return
-
         val aspect = player.getVideoOutAspect()
         Log.d(TAG, "video-params/aspect changed: $aspect")
         pipHelper.updatePictureInPictureParams()
@@ -1603,6 +1632,8 @@ class PlayerActivity :
     property: String,
     value: String,
   ) {
+    if (shouldIgnoreMpvCallbacks()) return
+
     // Currently no String properties are handled
   }
 
@@ -1613,6 +1644,8 @@ class PlayerActivity :
    * @param property The property name that changed
    */
   internal fun onObserverEvent(property: String) {
+    if (shouldIgnoreMpvCallbacks()) return
+
     // Currently no properties use this signature
   }
 
@@ -1624,6 +1657,8 @@ class PlayerActivity :
    * @param eventId The MPV event ID
    */
   internal fun event(eventId: Int) {
+    if (shouldIgnoreMpvCallbacks()) return
+
     when (eventId) {
       MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
         handleFileLoaded()
@@ -1723,7 +1758,7 @@ class PlayerActivity :
       // video dimensions are available
       lifecycleScope.launch {
         kotlinx.coroutines.delay(100)
-        if (mpvInitialized && !player.isExiting && !isFinishing) {
+        if (canReadMpvState()) {
           val aspect = player.getVideoOutAspect()
           Log.d(TAG, "handleFileLoaded - Video mode, aspect after delay: $aspect")
           if (aspect != null && aspect > 0) {
@@ -1833,6 +1868,8 @@ class PlayerActivity :
 
           // Update MPV title
           withContext(Dispatchers.Main) {
+            if (!canReadMpvState()) return@withContext
+
             MPVLib.setPropertyString("force-media-title", fileName)
             viewModel.setMediaTitle(fileName)
 
@@ -1873,6 +1910,8 @@ class PlayerActivity :
           }
 
           // Get duration and file size from MPV
+          if (!canReadMpvState()) return@launch
+
           val updatedDuration = runCatching {
             (MPVLib.getPropertyDouble("duration") ?: 0.0).times(1000).toLong()
           }.getOrDefault(0L)
@@ -1968,7 +2007,7 @@ class PlayerActivity :
    * @param mediaTitle The title of the media being played
    */
   private fun saveVideoPlaybackState(mediaTitle: String) {
-    if (mediaIdentifier.isBlank()) return
+    val snapshot = capturePlaybackStateSnapshot(mediaTitle) ?: return
 
     // Cancel any previous pending save operation
     savePlaybackStateJob?.cancel()
@@ -1976,34 +2015,31 @@ class PlayerActivity :
     // Launch new save job and track it
     savePlaybackStateJob = lifecycleScope.launch(Dispatchers.IO) {
       runCatching {
-        val oldState = playbackStateRepository.getVideoDataByTitle(mediaIdentifier)
-        Log.d(TAG, "Saving playback state for: $mediaTitle (identifier: $mediaIdentifier)")
+        val oldState = playbackStateRepository.getVideoDataByTitle(snapshot.mediaIdentifier)
+        Log.d(TAG, "Saving playback state for: ${snapshot.mediaTitle} (identifier: ${snapshot.mediaIdentifier})")
 
-        val lastPosition = calculateSavePosition(oldState)
-        val duration = viewModel.duration ?: 0
+        val lastPosition = calculateSavePosition(oldState, snapshot.currentPosition, snapshot.duration)
+        val duration = snapshot.duration
         val timeRemaining = if (duration > lastPosition) duration - lastPosition else 0
 
         playbackStateRepository.upsert(
           PlaybackStateEntity(
-            mediaTitle = mediaIdentifier,
+            mediaTitle = snapshot.mediaIdentifier,
             lastPosition = lastPosition,
-            playbackSpeed = MPVLib.getPropertyDouble("speed") ?: DEFAULT_PLAYBACK_SPEED,
-            videoZoom = MPVLib.getPropertyDouble("video-zoom")?.toFloat() ?: 0f,
-            sid = player.sid,
-            secondarySid = player.secondarySid,
-            subDelay = ((MPVLib.getPropertyDouble("sub-delay") ?: 0.0) * MILLISECONDS_TO_SECONDS).toInt(),
-            subSpeed = MPVLib.getPropertyDouble("sub-speed") ?: DEFAULT_SUB_SPEED,
-            aid = player.aid,
-            audioDelay =
-              (
-                (MPVLib.getPropertyDouble("audio-delay") ?: 0.0) * MILLISECONDS_TO_SECONDS
-                ).toInt(),
+            playbackSpeed = snapshot.playbackSpeed,
+            videoZoom = snapshot.videoZoom,
+            sid = snapshot.sid,
+            secondarySid = snapshot.secondarySid,
+            subDelay = snapshot.subDelay,
+            subSpeed = snapshot.subSpeed,
+            aid = snapshot.aid,
+            audioDelay = snapshot.audioDelay,
             timeRemaining = timeRemaining,
-            externalSubtitles = viewModel.externalSubtitles.joinToString("|"),
+            externalSubtitles = snapshot.externalSubtitles,
             hasBeenWatched = run {
               val watchedThreshold = browserPreferences.watchedThreshold.get()
               val durationSeconds = duration.toFloat()
-              val currentPos = viewModel.pos ?: 0
+              val currentPos = snapshot.currentPosition
               
               // Check if we are at the end (effectively watched)
               // Using a small buffer (1s) to account for float inaccuracies or near-end stops
@@ -2026,6 +2062,47 @@ class PlayerActivity :
     }
   }
 
+  private fun capturePlaybackStateSnapshot(mediaTitle: String): PlaybackStateSnapshot? {
+    if (mediaIdentifier.isBlank()) return null
+
+    val currentPosition = viewModel.pos ?: 0
+    val duration = viewModel.duration ?: 0
+
+    if (!canReadMpvState()) {
+      return PlaybackStateSnapshot(
+        mediaIdentifier = mediaIdentifier,
+        mediaTitle = mediaTitle,
+        currentPosition = currentPosition,
+        duration = duration,
+        playbackSpeed = DEFAULT_PLAYBACK_SPEED,
+        videoZoom = 0f,
+        sid = -1,
+        secondarySid = -1,
+        subDelay = 0,
+        subSpeed = DEFAULT_SUB_SPEED,
+        aid = -1,
+        audioDelay = 0,
+        externalSubtitles = viewModel.externalSubtitles.joinToString("|"),
+      )
+    }
+
+    return PlaybackStateSnapshot(
+      mediaIdentifier = mediaIdentifier,
+      mediaTitle = mediaTitle,
+      currentPosition = currentPosition,
+      duration = duration,
+      playbackSpeed = runCatching { MPVLib.getPropertyDouble("speed") }.getOrNull() ?: DEFAULT_PLAYBACK_SPEED,
+      videoZoom = runCatching { MPVLib.getPropertyDouble("video-zoom") }.getOrNull()?.toFloat() ?: 0f,
+      sid = runCatching { player.sid }.getOrDefault(-1),
+      secondarySid = runCatching { player.secondarySid }.getOrDefault(-1),
+      subDelay = ((runCatching { MPVLib.getPropertyDouble("sub-delay") }.getOrNull() ?: 0.0) * MILLISECONDS_TO_SECONDS).toInt(),
+      subSpeed = runCatching { MPVLib.getPropertyDouble("sub-speed") }.getOrNull() ?: DEFAULT_SUB_SPEED,
+      aid = runCatching { player.aid }.getOrDefault(-1),
+      audioDelay = ((runCatching { MPVLib.getPropertyDouble("audio-delay") }.getOrNull() ?: 0.0) * MILLISECONDS_TO_SECONDS).toInt(),
+      externalSubtitles = viewModel.externalSubtitles.joinToString("|"),
+    )
+  }
+
   /**
    * Calculates the position to save based on user preferences.
    *
@@ -2035,14 +2112,16 @@ class PlayerActivity :
    * @param oldState Previous playback state if it exists
    * @return Position in seconds to save
    */
-  private fun calculateSavePosition(oldState: PlaybackStateEntity?): Int {
+  private fun calculateSavePosition(
+    oldState: PlaybackStateEntity?,
+    currentPosition: Int,
+    duration: Int,
+  ): Int {
     if (!playerPreferences.savePositionOnQuit.get()) {
       return oldState?.lastPosition ?: 0
     }
 
-    val pos = viewModel.pos ?: 0
-    val duration = viewModel.duration ?: 0
-    return if (pos < duration - 1) pos else 0
+    return if (currentPosition < duration - 1) currentPosition else 0
   }
 
   /**
@@ -2190,31 +2269,33 @@ class PlayerActivity :
           else -> "normal"
         }
 
+      val canReadMpv = canReadMpvState()
+
       // Get parsed video title from MPV
-      val videoTitle = runCatching {
+      val videoTitle = if (canReadMpv) runCatching {
         MPVLib.getPropertyString("media-title")
-      }.getOrNull()?.takeIf { it.isNotBlank() && it != fileName }
+      }.getOrNull()?.takeIf { it.isNotBlank() && it != fileName } else null
 
       // Get duration and file size from MPV
-      val duration = runCatching {
+      val duration = if (canReadMpv) runCatching {
         (MPVLib.getPropertyDouble("duration") ?: 0.0).times(1000).toLong()
-      }.getOrDefault(0L)
+      }.getOrDefault(0L) else 0L
 
-      val fileSize = runCatching {
+      val fileSize = if (canReadMpv) runCatching {
         // Try multiple properties to get file size
         MPVLib.getPropertyDouble("file-size")?.toLong()
           ?: MPVLib.getPropertyDouble("stream-end")?.toLong()
           ?: 0L
-      }.getOrDefault(0L)
+      }.getOrDefault(0L) else 0L
 
       // Get video resolution from MPV
-      val width = runCatching {
+      val width = if (canReadMpv) runCatching {
         MPVLib.getPropertyInt("width") ?: MPVLib.getPropertyInt("video-params/w") ?: 0
-      }.getOrDefault(0)
+      }.getOrDefault(0) else 0
 
-      val height = runCatching {
+      val height = if (canReadMpv) runCatching {
         MPVLib.getPropertyInt("height") ?: MPVLib.getPropertyInt("video-params/h") ?: 0
-      }.getOrDefault(0)
+      }.getOrDefault(0) else 0
 
       RecentlyPlayedOps.addRecentlyPlayed(
         filePath = filePath,
@@ -2723,8 +2804,16 @@ class PlayerActivity :
     MediaPlaybackService.createNotificationChannel(this)
     
     // Get media info before starting service
-    val artist = runCatching { MPVLib.getPropertyString("metadata/artist") }.getOrNull() ?: ""
-    val thumbnail = runCatching { MPVLib.grabThumbnail(1080) }.getOrNull()
+    val artist = if (canReadMpvState()) {
+      runCatching { MPVLib.getPropertyString("metadata/artist") }.getOrNull() ?: ""
+    } else {
+      ""
+    }
+    val thumbnail = if (canReadMpvState()) {
+      runCatching { MPVLib.grabThumbnail(1080) }.getOrNull()
+    } else {
+      null
+    }
     
     // Pass media info via intent extras
     val intent = Intent(this, MediaPlaybackService::class.java).apply {
@@ -3052,6 +3141,7 @@ class PlayerActivity :
     // Update media session metadata
     lifecycleScope.launch {
       kotlinx.coroutines.delay(100) // Wait for MPV to load the file
+      if (!canReadMpvState()) return@launch
       val durationMs = (MPVLib.getPropertyDouble("duration")?.times(1000))?.toLong() ?: 0L
       updateMediaSessionMetadata(
         title = fileName,
@@ -3077,7 +3167,7 @@ class PlayerActivity :
    */
   fun getTitleForControls(): String {
     // For m3u/m3u8 streams, use MPV's raw media-title directly
-    if (isCurrentStreamM3U()) {
+    if (isCurrentStreamM3U() && canReadMpvState()) {
       val rawTitle = MPVLib.getPropertyString("media-title")
       if (!rawTitle.isNullOrBlank()) {
         return rawTitle
@@ -3151,31 +3241,33 @@ class PlayerActivity :
           }
         }
 
+      val canReadMpv = canReadMpvState()
+
       // Get parsed video title from MPV
-      val videoTitle = runCatching {
+      val videoTitle = if (canReadMpv) runCatching {
         MPVLib.getPropertyString("media-title")
-      }.getOrNull()?.takeIf { it.isNotBlank() && it != name }
+      }.getOrNull()?.takeIf { it.isNotBlank() && it != name } else null
 
       // Get duration and file size from MPV
-      val duration = runCatching {
+      val duration = if (canReadMpv) runCatching {
         (MPVLib.getPropertyDouble("duration") ?: 0.0).times(1000).toLong()
-      }.getOrDefault(0L)
+      }.getOrDefault(0L) else 0L
 
-      val fileSize = runCatching {
+      val fileSize = if (canReadMpv) runCatching {
         // Try multiple properties to get file size
         MPVLib.getPropertyDouble("file-size")?.toLong()
           ?: MPVLib.getPropertyDouble("stream-end")?.toLong()
           ?: 0L
-      }.getOrDefault(0L)
+      }.getOrDefault(0L) else 0L
 
       // Get video resolution from MPV
-      val width = runCatching {
+      val width = if (canReadMpv) runCatching {
         MPVLib.getPropertyInt("width") ?: MPVLib.getPropertyInt("video-params/w") ?: 0
-      }.getOrDefault(0)
+      }.getOrDefault(0) else 0
 
-      val height = runCatching {
+      val height = if (canReadMpv) runCatching {
         MPVLib.getPropertyInt("height") ?: MPVLib.getPropertyInt("video-params/h") ?: 0
-      }.getOrDefault(0)
+      }.getOrDefault(0) else 0
 
       RecentlyPlayedOps.addRecentlyPlayed(
         filePath = filePath,

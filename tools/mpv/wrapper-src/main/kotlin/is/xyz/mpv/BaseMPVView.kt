@@ -18,6 +18,7 @@ abstract class BaseMPVView(context: Context, attrs: AttributeSet) : SurfaceView(
         initOptions()
 
         MPVLib.init()
+        MPVLib.enablePropertyReads()
 
         postInitOptions()
         MPVLib.setOptionString("force-window", "no")
@@ -29,6 +30,7 @@ abstract class BaseMPVView(context: Context, attrs: AttributeSet) : SurfaceView(
 
     fun destroy() {
         holder.removeCallback(this)
+        MPVLib.disablePropertyReads()
         MPVLib.destroy()
     }
 
@@ -49,10 +51,12 @@ abstract class BaseMPVView(context: Context, attrs: AttributeSet) : SurfaceView(
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        if (!MPVLib.isMpvAvailable()) return
         MPVLib.setPropertyString("android-surface-size", "${width}x$height")
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        if (!MPVLib.isMpvAvailable()) return
         Log.w(TAG, "attaching surface")
         MPVLib.attachSurface(holder.surface)
         MPVLib.setOptionString("force-window", "yes")
@@ -67,6 +71,7 @@ abstract class BaseMPVView(context: Context, attrs: AttributeSet) : SurfaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        if (!MPVLib.isMpvAvailable()) return
         Log.w(TAG, "detaching surface")
         MPVLib.setPropertyString("vo", "null")
         MPVLib.setPropertyString("force-window", "no")

@@ -97,6 +97,9 @@ done
 [ -n "$MPV_ANDROID_REF" ] || die "--ref cannot be empty"
 [ -n "$MPV_ANDROID_ARCHES" ] || die "--arches cannot be empty"
 
+OUTPUT="${OUTPUT:A}"
+WORK_DIR="${WORK_DIR:A}"
+
 require_cmd git
 require_cmd cp
 require_cmd find
@@ -230,8 +233,22 @@ if [ -d "$SRC_DIR/app/src/main/jniLibs" ]; then
 elif [ -d "$SRC_DIR/app/src/main/libs" ]; then
   NATIVE_LIBS_DIR="$SRC_DIR/app/src/main/libs"
 fi
-[ -n "$NATIVE_LIBS_DIR" ] || die "mpv-android did not produce native libraries"
-cp -R "$NATIVE_LIBS_DIR/." "$LIB_DIR/src/main/jniLibs/"
+if [ -n "$NATIVE_LIBS_DIR" ]; then
+  cp -R "$NATIVE_LIBS_DIR/." "$LIB_DIR/src/main/jniLibs/"
+elif [ "$MPV_ANDROID_SKIP_NATIVE_BUILD" = "1" ] && [ -f "$OUTPUT" ]; then
+  require_cmd unzip
+  EXISTING_AAR_DIR="$WORK_DIR/existing-aar"
+  rm -rf "$EXISTING_AAR_DIR"
+  mkdir -p "$EXISTING_AAR_DIR"
+  (
+    cd "$EXISTING_AAR_DIR"
+    unzip -q "$OUTPUT" 'jni/*'
+  )
+  [ -d "$EXISTING_AAR_DIR/jni" ] || die "existing AAR does not contain native libraries: $OUTPUT"
+  cp -R "$EXISTING_AAR_DIR/jni/." "$LIB_DIR/src/main/jniLibs/"
+else
+  die "mpv-android did not produce native libraries"
+fi
 
 if [ -d "$SRC_DIR/app/src/main/assets" ]; then
   cp -R "$SRC_DIR/app/src/main/assets/." "$LIB_DIR/src/main/assets/"

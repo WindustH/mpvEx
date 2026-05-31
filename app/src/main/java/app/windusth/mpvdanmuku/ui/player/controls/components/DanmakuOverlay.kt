@@ -6,8 +6,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -24,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import app.windusth.mpvdanmuku.repository.danmaku.DanmakuComment
 import kotlinx.coroutines.isActive
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -60,36 +63,59 @@ fun DanmakuOverlay(
 
   if (!enabled || processedComments.isEmpty()) return
 
+  val currentPosition by rememberUpdatedState(positionSeconds)
+  val currentPaused by rememberUpdatedState(paused)
+  val currentSpeed by rememberUpdatedState(playbackSpeed)
+
   var renderedPosition by remember { mutableStateOf(positionSeconds) }
-  var anchorPosition by remember { mutableStateOf(positionSeconds) }
-  var anchorFrameNanos by remember { mutableStateOf(0L) }
+  var lastSample by remember { mutableStateOf(positionSeconds) }
 
-  LaunchedEffect(positionSeconds, paused, playbackSpeed) {
-    val now = withFrameNanos { it }
-    anchorPosition = positionSeconds
-    anchorFrameNanos = now
-    renderedPosition = positionSeconds
-  }
-
-  LaunchedEffect(enabled, processedComments, frameRate, paused, playbackSpeed) {
+  LaunchedEffect(enabled, processedComments, frameRate) {
     val fps = frameRate.coerceIn(24f, 120f).roundToInt().coerceAtLeast(1)
     val frameIntervalNanos = 1_000_000_000L / fps
     var lastFrameNanos = 0L
 
     while (isActive && enabled && processedComments.isNotEmpty()) {
-      val now = withFrameNanos { it }
-      if (lastFrameNanos == 0L || now - lastFrameNanos >= frameIntervalNanos) {
-        if (anchorFrameNanos == 0L) {
-          anchorFrameNanos = now
-          anchorPosition = positionSeconds
-        }
-        renderedPosition = if (paused) {
-          anchorPosition
-        } else {
-          val elapsed = ((now - anchorFrameNanos).coerceAtLeast(0L) / 1_000_000_000f) * playbackSpeed.coerceAtLeast(0f)
-          anchorPosition + elapsed
-        }
+      val now = try {
+        withFrameNanos { it }
+      } catch (_: Exception) {
+        break
+      }
+      
+      if (lastFrameNanos == 0L) {
         lastFrameNanos = now
+        renderedPosition = currentPosition.coerceAtLeast(0f)
+        continue
+      }
+
+      val elapsedNanos = now - lastFrameNanos
+      if (elapsedNanos >= frameIntervalNanos) {
+        val deltaSeconds = (elapsedNanos / 1_000_000_000f).coerceAtMost(0.1f)
+        lastFrameNanos = now
+
+        val samplePosition = currentPosition.coerceAtLeast(0f)
+        val speed = currentSpeed.coerceAtLeast(0f)
+
+        if (currentPaused) {
+          renderedPosition = samplePosition
+        } else {
+          val sampleChanged = abs(samplePosition - lastSample) > 0.02f
+          val backwardsSeek = sampleChanged && samplePosition < lastSample - 0.3f
+          val forwardsJump = abs(samplePosition - renderedPosition) > max(1.0f, speed * 0.5f)
+
+          if (backwardsSeek || forwardsJump) {
+            renderedPosition = samplePosition
+          } else {
+            val expectedAdvance = deltaSeconds * speed
+            val drift = samplePosition - renderedPosition
+            val correction = drift * deltaSeconds * 2.0f
+            renderedPosition += expectedAdvance + correction
+          }
+
+          if (sampleChanged) {
+            lastSample = samplePosition
+          }
+        }
       }
     }
   }
@@ -97,7 +123,23 @@ fun DanmakuOverlay(
   BoxWithConstraints(
     modifier = modifier.clipToBounds(),
   ) {
-    val sortedComments = remember(processedComments) { processedComments.sortedBy { it.time } }
+    val sortedComments = remember(processedComments) {
+      processedComments
+        .sortedBy { it.time }
+        .mapIndexed { index, comment ->
+          RenderDanmakuItem(
+            key = DanmakuRenderKey(
+              index = index,
+              time = comment.time,
+              type = comment.type,
+              color = comment.color,
+              text = comment.text,
+              repeatCount = comment.repeatCount,
+            ),
+            comment = comment,
+          )
+        }
+    }
     val density = LocalDensity.current
     val widthPx = with(density) { maxWidth.toPx() }
     val heightPx = with(density) { maxHeight.toPx() }
@@ -127,72 +169,90 @@ fun DanmakuOverlay(
     val visibleComments = remember(sortedComments, renderedPosition, fixedDuration, scrollDuration) {
       val maxDuration = max(scrollDuration, fixedDuration)
       val startIndex = sortedComments.lowerBoundByTime(renderedPosition - maxDuration)
-      val result = ArrayList<DanmakuComment>()
+      val result = ArrayList<RenderDanmakuItem>()
 
       for (index in startIndex until sortedComments.size) {
-        val comment = sortedComments[index]
+        val item = sortedComments[index]
+        val comment = item.comment
         if (comment.time > renderedPosition) break
         val duration = if (comment.type == 4 || comment.type == 5) fixedDuration else scrollDuration
         if (renderedPosition <= comment.time + duration) {
-          result.add(comment)
+          result.add(item)
         }
       }
 
       result
     }
 
-    visibleComments.forEach { comment ->
-      val displayText = if (comment.repeatCount > 1) {
-        "${comment.text}×${comment.repeatCount}"
-      } else {
-        comment.text
-      }
-      val baseColor = Color(0xFF000000L or comment.color)
-      val textColor = baseColor.copy(alpha = alpha)
-
-      if (comment.type == 4 || comment.type == 5) {
-        val row = comment.row % fixedRows
-        val y = if (comment.type == 4) {
-          displayHeightPx - ((row + 1) * rowHeightPx)
+    visibleComments.forEach { item ->
+      key(item.key) {
+        val comment = item.comment
+        val displayText = if (comment.repeatCount > 1) {
+          "${comment.text}×${comment.repeatCount}"
         } else {
-          row * rowHeightPx
+          comment.text
         }
+        val baseColor = Color(0xFF000000L or comment.color)
+        val textColor = baseColor.copy(alpha = alpha)
 
-        Text(
-          text = displayText,
-          color = textColor,
-          maxLines = 1,
-          overflow = TextOverflow.Clip,
-          textAlign = TextAlign.Center,
-          style = textStyle,
-          modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer { translationY = y },
-        )
-      } else {
-        val row = comment.row % rollingRows
-        val y = row * rowHeightPx
-        val elapsed = (renderedPosition - comment.time).coerceIn(0f, scrollDuration)
-        val progress = elapsed / scrollDuration
-        val textWidthPx = estimateTextWidthPx(displayText, fontPx)
-        val x = widthPx - progress * (widthPx + textWidthPx)
+        if (comment.type == 4 || comment.type == 5) {
+          val row = comment.row % fixedRows
+          val y = if (comment.type == 4) {
+            displayHeightPx - ((row + 1) * rowHeightPx)
+          } else {
+            row * rowHeightPx
+          }
 
-        Text(
-          text = displayText,
-          color = textColor,
-          maxLines = 1,
-          overflow = TextOverflow.Visible,
-          style = textStyle,
-          modifier = Modifier
-            .graphicsLayer {
-              translationX = x
-              translationY = y
-            },
-        )
+          Text(
+            text = displayText,
+            color = textColor,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            textAlign = TextAlign.Center,
+            style = textStyle,
+            modifier = Modifier
+              .fillMaxWidth()
+              .graphicsLayer { translationY = y },
+          )
+        } else {
+          val row = comment.row % rollingRows
+          val y = row * rowHeightPx
+          val elapsed = (renderedPosition - comment.time).coerceIn(0f, scrollDuration)
+          val progress = elapsed / scrollDuration
+          val textWidthPx = estimateTextWidthPx(displayText, fontPx)
+          val x = widthPx - progress * (widthPx + textWidthPx)
+
+          Text(
+            text = displayText,
+            color = textColor,
+            maxLines = 1,
+            overflow = TextOverflow.Visible,
+            style = textStyle,
+            modifier = Modifier
+              .graphicsLayer {
+                translationX = x
+                translationY = y
+              },
+          )
+        }
       }
     }
   }
 }
+
+private data class RenderDanmakuItem(
+  val key: DanmakuRenderKey,
+  val comment: DanmakuComment,
+)
+
+private data class DanmakuRenderKey(
+  val index: Int,
+  val time: Float,
+  val type: Int,
+  val color: Long,
+  val text: String,
+  val repeatCount: Int,
+)
 
 private fun estimateTextWidthPx(text: String, fontPx: Float): Float {
   val units = text.sumOf { char ->
@@ -205,12 +265,12 @@ private fun estimateTextWidthPx(text: String, fontPx: Float): Float {
   return (units * fontPx).toFloat()
 }
 
-private fun List<DanmakuComment>.lowerBoundByTime(target: Float): Int {
+private fun List<RenderDanmakuItem>.lowerBoundByTime(target: Float): Int {
   var low = 0
   var high = size
   while (low < high) {
     val mid = (low + high) ushr 1
-    if (this[mid].time < target) {
+    if (this[mid].comment.time < target) {
       low = mid + 1
     } else {
       high = mid
