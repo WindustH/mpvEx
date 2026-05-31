@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 set -euo pipefail
 
 die() {
@@ -39,7 +39,7 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="${0:A:h:h:h}"
 OUTPUT="${MPV_ANDROID_AAR_OUTPUT:-$ROOT_DIR/app/libs/mpv-android-lib.aar}"
 WORK_DIR="${MPV_ANDROID_BUILD_DIR:-$ROOT_DIR/build/mpv-android-aar}"
 MPV_ANDROID_REPO="${MPV_ANDROID_REPO:-https://github.com/mpv-android/mpv-android.git}"

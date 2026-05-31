@@ -10,11 +10,11 @@ plugins {
 }
 
 android {
-  namespace = "app.marlboroadvance.mpvex"
+  namespace = "app.windusth.mpvdanmuku"
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "app.marlboroadvance.mpvex"
+    applicationId = "app.windusth.mpvdanmuku"
     minSdk = 26
     targetSdk = 36
     versionCode = 129
@@ -180,7 +180,7 @@ val prepareMpvAndroidLib by tasks.registering(org.gradle.api.tasks.Exec::class) 
   onlyIf { !mpvAndroidLibAar.asFile.exists() }
 
   commandLine(
-    "bash",
+    "zsh",
     buildMpvAndroidLibScript.asFile.absolutePath,
     "--output",
     mpvAndroidLibAar.asFile.absolutePath
@@ -190,7 +190,7 @@ val prepareMpvAndroidLib by tasks.registering(org.gradle.api.tasks.Exec::class) 
   val sdkRoot = System.getenv("ANDROID_SDK_ROOT")
     ?: System.getenv("ANDROID_HOME")
     ?: rootProject.layout.projectDirectory.dir(".android-sdk").asFile.absolutePath
-  val javaHome = System.getenv("JAVA_HOME") ?: "/usr/lib/jvm/java-21-openjdk"
+  val javaHome = System.getenv("JAVA_HOME") ?: System.getProperty("java.home")
   environment("ANDROID_SDK_ROOT", sdkRoot)
   environment("ANDROID_HOME", sdkRoot)
   environment("JAVA_HOME", javaHome)
