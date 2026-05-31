@@ -1,5 +1,7 @@
 # mpvDanmuku
 
+<p align="center"><img src="mpvDanmuku.svg" width="128" alt="mpvDanmuku icon" /></p>
+
 **Fork of [marlboro-advance/mpvEx](https://github.com/marlboro-advance/mpvEx), based on
 [mpv-android](https://github.com/mpv-android/mpv-android) and the libmpv library.**
 
@@ -69,9 +71,6 @@ mpvDanmuku/
 │       └── wrapper-src/              # Kotlin wrappers (MPVLib, FastThumbnails, ...)
 ├── docs/
 │   └── mpv-android-lib.md    # AAR build documentation
-└── .github/workflows/
-    ├── build.yml             # CI: PR/master Kotlin compilation check
-    └── release.yml           # Release: tag-triggered APK build + draft release
 ```
 
 ### Key Patterns
@@ -108,13 +107,13 @@ source tools/env.sh
 
 ### Prerequisites
 
-- JDK 21 (`/usr/lib/jvm/java-21-openjdk`)
+- JDK 17 (`/usr/lib/jvm/java-17-openjdk`)
 - Android SDK (automatically used from `.android-sdk/`)
 - `gperf` (for mpv-android native build)
 
 ### APK Variants
 
-- **universal** | **arm64-v8a** | **armeabi-v7a** | **x86** | **x86_64**
+- **arm64-v8a**
 
 ---
 

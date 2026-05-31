@@ -17,8 +17,8 @@ android {
     applicationId = "app.windusth.mpvdanmuku"
     minSdk = 26
     targetSdk = 36
-    versionCode = 129
-    versionName = "1.2.9"
+    versionCode = 200
+    versionName = "2.0.0"
 
     vectorDrawables {
       useSupportLibrary = true
