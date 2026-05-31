@@ -170,6 +170,37 @@ room {
   schemaDirectory("$projectDir/schemas")
 }
 
+val mpvAndroidLibAar = layout.projectDirectory.file("libs/mpv-android-lib.aar")
+val buildMpvAndroidLibScript = rootProject.layout.projectDirectory.file("tools/mpv/build-mpv-android-aar.sh")
+
+val prepareMpvAndroidLib by tasks.registering(org.gradle.api.tasks.Exec::class) {
+  group = "mpv"
+  description = "Builds app/libs/mpv-android-lib.aar from mpv-android sources when it is missing."
+  outputs.file(mpvAndroidLibAar)
+  onlyIf { !mpvAndroidLibAar.asFile.exists() }
+
+  commandLine(
+    "bash",
+    buildMpvAndroidLibScript.asFile.absolutePath,
+    "--output",
+    mpvAndroidLibAar.asFile.absolutePath
+  )
+  workingDir(rootProject.projectDir)
+
+  val sdkRoot = System.getenv("ANDROID_SDK_ROOT")
+    ?: System.getenv("ANDROID_HOME")
+    ?: rootProject.layout.projectDirectory.dir("../android-sdk").asFile.absolutePath
+  val javaHome = System.getenv("JAVA_HOME") ?: "/usr/lib/jvm/java-21-openjdk"
+  environment("ANDROID_SDK_ROOT", sdkRoot)
+  environment("ANDROID_HOME", sdkRoot)
+  environment("JAVA_HOME", javaHome)
+  environment("PATH", "$javaHome/bin:${System.getenv("PATH") ?: ""}")
+}
+
+tasks.named("preBuild") {
+  dependsOn(prepareMpvAndroidLib)
+}
+
 dependencies {
   implementation(libs.androidx.activity.compose)
   implementation(platform(libs.androidx.compose.bom))
@@ -210,7 +241,7 @@ dependencies {
   implementation(libs.truetype.parser)
   implementation(libs.fsaf)
   implementation(libs.mediainfo.lib)
-  implementation(files("libs/mpv-android-lib-v0.0.1.aar"))
+  implementation(files(mpvAndroidLibAar))
 
   // Network protocol libraries
   implementation(libs.smbj)
