@@ -16,4 +16,7 @@ class DanmakuPreferences(
   val bold = preferenceStore.getBoolean("danmaku_bold", true)
   val outline = preferenceStore.getFloat("danmaku_outline", 2f)
   val shadow = preferenceStore.getFloat("danmaku_shadow", 1f)
+  val mergeDuplicates = preferenceStore.getBoolean("danmaku_merge_duplicates", true)
+  val mergeDuplicateWindow = preferenceStore.getFloat("danmaku_merge_duplicate_window", 3f)
+  val mergeDuplicateThreshold = preferenceStore.getInt("danmaku_merge_duplicate_threshold", 3)
 }

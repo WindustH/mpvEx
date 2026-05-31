@@ -43,6 +43,7 @@ data class DanmakuComment(
   val color: Long,
   val text: String,
   val row: Int = 0,
+  val repeatCount: Int = 1,
 )
 
 data class DanmakuMatchResult(

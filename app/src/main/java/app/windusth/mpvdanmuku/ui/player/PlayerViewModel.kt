@@ -826,7 +826,7 @@ class PlayerViewModel(
       }
 
       runCatching {
-        assignDanmakuRows(danmakuRepository.getComments(episode.episodeId))
+        assignDanmakuRows(mergeDuplicateDanmaku(danmakuRepository.getComments(episode.episodeId)))
       }.onSuccess { comments ->
         val animeTitle = _danmakuState.value.selectedAnime?.title
         val label = listOfNotNull(animeTitle, episode.title).joinToString(" - ")
@@ -903,7 +903,7 @@ class PlayerViewModel(
 
       runCatching {
         val episode = danmakuRepository.autoMatchDanmaku(mediaTitle, filePath)
-        val comments = episode?.let { assignDanmakuRows(danmakuRepository.getComments(it.episodeId)) }
+        val comments = episode?.let { assignDanmakuRows(mergeDuplicateDanmaku(danmakuRepository.getComments(it.episodeId))) }
         episode to comments
       }.onSuccess { (episode, comments) ->
         when {
@@ -968,6 +968,42 @@ class PlayerViewModel(
     val parsedTitle = MediaInfoParser.parse(mediaTitle).title
     val searchTitle = parsedTitle.ifBlank { mediaTitle.substringBeforeLast(".") }
     _danmakuState.value = DanmakuUiState(searchQuery = searchTitle)
+  }
+
+  private fun mergeDuplicateDanmaku(comments: List<DanmakuComment>): List<DanmakuComment> {
+    if (!danmakuPreferences.mergeDuplicates.get()) return comments
+    val window = danmakuPreferences.mergeDuplicateWindow.get().coerceIn(0.5f, 30f)
+    val threshold = danmakuPreferences.mergeDuplicateThreshold.get().coerceIn(2, 100)
+
+    data class BucketKey(val type: Int, val normalizedText: String)
+
+    fun normalize(text: String): String = text.trim().replace(Regex("\\s+"), " ")
+
+    fun mergeOneTextGroup(group: List<DanmakuComment>): List<DanmakuComment> {
+      if (group.size < threshold) return group
+      val sorted = group.sortedBy { it.time }
+      val merged = ArrayList<DanmakuComment>(sorted.size)
+      var i = 0
+      while (i < sorted.size) {
+        val start = sorted[i]
+        var j = i
+        while (j < sorted.size && sorted[j].time <= start.time + window) j++
+        val count = j - i
+        if (count >= threshold) {
+          merged.add(start.copy(repeatCount = count))
+          i = j
+        } else {
+          merged.add(start)
+          i++
+        }
+      }
+      return merged
+    }
+
+    return comments
+      .groupBy { BucketKey(it.type, normalize(it.text)) }
+      .flatMap { (_, group) -> mergeOneTextGroup(group) }
+      .sortedBy { it.time }
   }
 
   private fun assignDanmakuRows(comments: List<DanmakuComment>): List<DanmakuComment> {

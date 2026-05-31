@@ -130,6 +130,11 @@ fun DanmakuOverlay(
     }
 
     visibleComments.forEach { comment ->
+      val displayText = if (comment.repeatCount > 1) {
+        "${comment.text}×${comment.repeatCount}"
+      } else {
+        comment.text
+      }
       val baseColor = Color(0xFF000000L or comment.color)
       val textColor = baseColor.copy(alpha = alpha)
 
@@ -142,7 +147,7 @@ fun DanmakuOverlay(
         }
 
         Text(
-          text = comment.text,
+          text = displayText,
           color = textColor,
           maxLines = 1,
           overflow = TextOverflow.Clip,
@@ -157,11 +162,11 @@ fun DanmakuOverlay(
         val y = row * rowHeightPx
         val elapsed = (renderedPosition - comment.time).coerceIn(0f, scrollDuration)
         val progress = elapsed / scrollDuration
-        val textWidthPx = estimateTextWidthPx(comment.text, fontPx)
+        val textWidthPx = estimateTextWidthPx(displayText, fontPx)
         val x = widthPx - progress * (widthPx + textWidthPx)
 
         Text(
-          text = comment.text,
+          text = displayText,
           color = textColor,
           maxLines = 1,
           overflow = TextOverflow.Visible,

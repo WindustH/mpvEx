@@ -72,6 +72,9 @@ object DanmakuPreferencesScreen : Screen {
         val bold by preferences.bold.collectAsState()
         val outline by preferences.outline.collectAsState()
         val shadow by preferences.shadow.collectAsState()
+        val mergeDuplicates by preferences.mergeDuplicates.collectAsState()
+        val mergeDuplicateWindow by preferences.mergeDuplicateWindow.collectAsState()
+        val mergeDuplicateThreshold by preferences.mergeDuplicateThreshold.collectAsState()
 
         LazyColumn(
           modifier = Modifier
@@ -206,6 +209,60 @@ object DanmakuPreferencesScreen : Screen {
                 },
                 onSliderValueChange = { preferences.frameRate.set(it.roundToInt().toFloat().coerceIn(24f, 120f)) },
                 sliderValue = frameRate,
+              )
+            }
+          }
+
+          item {
+            PreferenceSectionHeader(title = "Duplicate Merging")
+          }
+
+          item {
+            PreferenceCard {
+              SwitchPreference(
+                value = mergeDuplicates,
+                onValueChange = preferences.mergeDuplicates::set,
+                title = { Text("Merge duplicate danmaku") },
+                summary = {
+                  Text(
+                    "Combine repeated comments in a short time window, e.g. Hello×5",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              SliderPreference(
+                value = mergeDuplicateWindow,
+                onValueChange = { preferences.mergeDuplicateWindow.set(it.coerceIn(1f, 10f)) },
+                title = { Text("Merge Window") },
+                valueRange = 1f..10f,
+                summary = {
+                  Text(
+                    "%.1f sec".format(mergeDuplicateWindow),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+                onSliderValueChange = { preferences.mergeDuplicateWindow.set(it.coerceIn(1f, 10f)) },
+                sliderValue = mergeDuplicateWindow,
+              )
+
+              PreferenceDivider()
+
+              SliderPreference(
+                value = mergeDuplicateThreshold.toFloat(),
+                onValueChange = { preferences.mergeDuplicateThreshold.set(it.roundToInt().coerceIn(2, 20)) },
+                title = { Text("Merge Threshold") },
+                valueRange = 2f..20f,
+                summary = {
+                  Text(
+                    "$mergeDuplicateThreshold comments",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+                onSliderValueChange = { preferences.mergeDuplicateThreshold.set(it.roundToInt().coerceIn(2, 20)) },
+                sliderValue = mergeDuplicateThreshold.toFloat(),
               )
             }
           }
