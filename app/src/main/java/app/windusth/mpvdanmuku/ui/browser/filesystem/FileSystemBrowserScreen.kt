@@ -1682,28 +1682,4 @@ fun FileSystemSortDialog(
     )
   )
 }
-   onCheckedChange = { browserPreferences.showSizeChip.set(it) },
-      ),
-      VisibilityToggle(
-        label = "Resolution",
-        checked = showResolutionChip,
-        onCheckedChange = { browserPreferences.showResolutionChip.set(it) },
-      ),
-      VisibilityToggle(
-        label = "Framerate",
-        checked = showFramerateInResolution,
-        onCheckedChange = { browserPreferences.showFramerateInResolution.set(it) },
-      ),
-      VisibilityToggle(
-        label = "Subtitle",
-        checked = showSubtitleIndicator,
-        onCheckedChange = { browserPreferences.showSubtitleIndicator.set(it) },
-      ),
-      VisibilityToggle(
-        label = "Progress Bar",
-        checked = showProgressBar,
-        onCheckedChange = { browserPreferences.showProgressBar.set(it) },
-      ),
-    )
-  )
-}
+

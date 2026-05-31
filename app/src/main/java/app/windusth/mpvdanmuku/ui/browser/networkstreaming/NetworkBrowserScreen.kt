@@ -17,8 +17,12 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -83,6 +87,7 @@ data class NetworkBrowserScreen(
     val files by viewModel.files.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val isBookmarked by viewModel.isBookmarked.collectAsState()
 
     // UI State
     val isRefreshing = remember { mutableStateOf(false) }
@@ -111,15 +116,15 @@ data class NetworkBrowserScreen(
             backstack.add(app.windusth.mpvdanmuku.ui.preferences.PreferencesScreen)
           },
           additionalActions = {
-            androidx.compose.material3.IconButton(
+            IconButton(
               onClick = { viewModel.toggleBookmark(connectionName) },
               modifier = Modifier.padding(horizontal = 2.dp)
-            ) {
-              androidx.compose.material3.Icon(
-                imageVector = if (isBookmarked) androidx.compose.material.icons.Icons.Filled.Star else androidx.compose.material.icons.Icons.Outlined.StarOutline,
+              ) {
+              Icon(
+                imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Outlined.StarOutline,
                 contentDescription = "Bookmark",
                 modifier = Modifier.size(24.dp),
-                tint = if (isBookmarked) androidx.compose.material3.MaterialTheme.colorScheme.primary else androidx.compose.material3.MaterialTheme.colorScheme.secondary
+                tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
               )
             }
           },
@@ -179,7 +184,7 @@ private fun NetworkBrowserContent(
   var connection by remember { mutableStateOf<NetworkConnection?>(null) }
   
   val browserPreferences = org.koin.compose.koinInject<BrowserPreferences>()
-  val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState(initial = MediaLayoutMode.LIST)
+  val mediaLayoutMode by browserPreferences.mediaLayoutMode.collectAsState()
 
   LaunchedEffect(connectionId) {
     connection = dao.getConnectionById(connectionId)

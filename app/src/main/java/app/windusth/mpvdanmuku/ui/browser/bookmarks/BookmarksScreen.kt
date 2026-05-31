@@ -42,6 +42,7 @@ import app.windusth.mpvdanmuku.presentation.Screen
 import app.windusth.mpvdanmuku.ui.browser.components.BrowserTopBar
 import app.windusth.mpvdanmuku.ui.browser.filesystem.FileSystemBrowserRootScreen
 import app.windusth.mpvdanmuku.ui.browser.filesystem.FileSystemBrowserScreen
+import app.windusth.mpvdanmuku.ui.browser.filesystem.FileSystemDirectoryScreen
 import app.windusth.mpvdanmuku.ui.browser.networkstreaming.NetworkBrowserScreen
 import app.windusth.mpvdanmuku.ui.browser.states.EmptyState
 import app.windusth.mpvdanmuku.ui.utils.LocalBackStack
@@ -108,7 +109,7 @@ object BookmarksScreen : Screen {
                   )
                 } else {
                   // Navigate to Local File Browser
-                  backstack.add(FileSystemBrowserScreen(path = bookmark.path))
+                  backstack.add(FileSystemDirectoryScreen(path = bookmark.path))
                 }
               },
               onDeleteClick = { viewModel.deleteBookmark(bookmark) }

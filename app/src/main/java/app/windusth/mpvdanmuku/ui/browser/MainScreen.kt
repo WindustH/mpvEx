@@ -297,14 +297,4 @@ object MainScreen : Screen {
 }
 
 // CompositionLocal for navigation bar height
-val LocalNavigationBarHeight = compositionLocalOf { 0.dp }reen.Content()
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-// CompositionLocal for navigation bar height
 val LocalNavigationBarHeight = compositionLocalOf { 0.dp }
