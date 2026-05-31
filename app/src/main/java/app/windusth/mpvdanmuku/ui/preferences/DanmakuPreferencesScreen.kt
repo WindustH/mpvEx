@@ -1,27 +1,38 @@
 package app.windusth.mpvdanmuku.ui.preferences
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.BlurOn
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import app.windusth.mpvdanmuku.presentation.Screen
 import app.windusth.mpvdanmuku.preferences.DanmakuPreferences
+import app.windusth.mpvdanmuku.preferences.DanmakuAuthStore
 import app.windusth.mpvdanmuku.preferences.preference.collectAsState
+import app.windusth.mpvdanmuku.repository.danmaku.DandanplayDanmakuRepository
 import app.windusth.mpvdanmuku.ui.theme.spacing
 import app.windusth.mpvdanmuku.ui.utils.LocalBackStack
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import me.zhanghai.compose.preference.SliderPreference
@@ -36,6 +47,9 @@ object DanmakuPreferencesScreen : Screen {
   override fun Content() {
     val backStack = LocalBackStack.current
     val preferences = koinInject<DanmakuPreferences>()
+    val authStore = koinInject<DanmakuAuthStore>()
+    val repository = koinInject<DandanplayDanmakuRepository>()
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
       topBar = {
@@ -75,12 +89,160 @@ object DanmakuPreferencesScreen : Screen {
         val mergeDuplicates by preferences.mergeDuplicates.collectAsState()
         val mergeDuplicateWindow by preferences.mergeDuplicateWindow.collectAsState()
         val mergeDuplicateThreshold by preferences.mergeDuplicateThreshold.collectAsState()
+        val sendMode by preferences.sendMode.collectAsState()
+        val sendColor by preferences.sendColor.collectAsState()
+
+        var loginUserName by remember { mutableStateOf("") }
+        var loginPassword by remember { mutableStateOf("") }
+        var loginError by remember { mutableStateOf<String?>(null) }
+        var isLoggedInLocal by remember { mutableStateOf(authStore.isLoggedIn) }
 
         LazyColumn(
           modifier = Modifier
             .fillMaxSize()
             .padding(padding),
         ) {
+          item {
+            PreferenceSectionHeader(title = "Account")
+          }
+
+          item {
+            PreferenceCard {
+              if (isLoggedInLocal) {
+                Text(
+                  text = "Logged in as ${authStore.userName ?: "unknown"}",
+                  style = MaterialTheme.typography.bodyMedium,
+                )
+                Button(
+                  onClick = {
+                    authStore.logout()
+                    isLoggedInLocal = false
+                  },
+                ) {
+                  Text("Logout")
+                }
+              } else {
+                Text(
+                  text = "Login to send danmaku",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.outline,
+                )
+
+                OutlinedTextField(
+                  value = loginUserName,
+                  onValueChange = { loginUserName = it },
+                  label = { Text("Username") },
+                  singleLine = true,
+                  modifier = Modifier.fillMaxWidth(),
+                )
+
+                OutlinedTextField(
+                  value = loginPassword,
+                  onValueChange = { loginPassword = it },
+                  label = { Text("Password") },
+                  singleLine = true,
+                  visualTransformation = PasswordVisualTransformation(),
+                  modifier = Modifier.fillMaxWidth(),
+                )
+
+                if (loginError != null) {
+                  Text(
+                    text = loginError!!,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                  )
+                }
+
+                Button(
+                  onClick = {
+                    loginError = null
+                    coroutineScope.launch {
+                      runCatching {
+                        repository.login(loginUserName, loginPassword)
+                      }.onSuccess { result ->
+                        authStore.saveLogin(result)
+                        isLoggedInLocal = true
+                        loginUserName = ""
+                        loginPassword = ""
+                      }.onFailure { error ->
+                        loginError = error.message ?: "Login failed"
+                      }
+                    }
+                  },
+                  enabled = loginUserName.isNotBlank() && loginPassword.isNotBlank(),
+                  modifier = Modifier.fillMaxWidth(),
+                ) {
+                  Text("Login")
+                }
+              }
+            }
+          }
+
+          item {
+            PreferenceSectionHeader(title = "Sending")
+          }
+
+          item {
+            PreferenceCard {
+              SwitchPreference(
+                value = sendMode == 1,
+                onValueChange = { if (it) preferences.sendMode.set(1) },
+                title = { Text("Send Mode: Scroll") },
+                summary = {
+                  Text(
+                    "Danmaku scrolls across the screen",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              SwitchPreference(
+                value = sendMode == 4,
+                onValueChange = { if (it) preferences.sendMode.set(4) },
+                title = { Text("Send Mode: Bottom") },
+                summary = {
+                  Text(
+                    "Danmaku appears at the bottom",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              SwitchPreference(
+                value = sendMode == 5,
+                onValueChange = { if (it) preferences.sendMode.set(5) },
+                title = { Text("Send Mode: Top") },
+                summary = {
+                  Text(
+                    "Danmaku appears at the top",
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+              )
+
+              PreferenceDivider()
+
+              SliderPreference(
+                value = sendColor.toFloat(),
+                onValueChange = { preferences.sendColor.set(it.roundToInt().coerceIn(0, 0xFFFFFF)) },
+                title = { Text("Default Color") },
+                valueRange = 0f..16777215f,
+                summary = {
+                  Text(
+                    "#%06X".format(sendColor),
+                    color = MaterialTheme.colorScheme.outline,
+                  )
+                },
+                onSliderValueChange = { preferences.sendColor.set(it.roundToInt().coerceIn(0, 0xFFFFFF)) },
+                sliderValue = sendColor.toFloat(),
+              )
+            }
+          }
+
           item {
             PreferenceSectionHeader(title = "Auto Match")
           }

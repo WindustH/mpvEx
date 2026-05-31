@@ -58,6 +58,7 @@ import java.io.File
 import androidx.documentfile.provider.DocumentFile
 import app.windusth.mpvdanmuku.preferences.AdvancedPreferences
 import app.windusth.mpvdanmuku.preferences.DanmakuPreferences
+import app.windusth.mpvdanmuku.preferences.DanmakuAuthStore
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
 
@@ -98,6 +99,7 @@ class PlayerViewModel(
   private val wyzieRepository: WyzieSearchRepository by inject()
   private val danmakuRepository: DandanplayDanmakuRepository by inject()
   val danmakuPreferences: DanmakuPreferences by inject()
+  private val danmakuAuthStore: DanmakuAuthStore by inject()
 
   private var currentFilePath: String? = null
 
@@ -838,6 +840,7 @@ class PlayerViewModel(
             comments = comments,
             enabled = comments.isNotEmpty(),
             loadedLabel = label.ifBlank { episode.title },
+            loadedEpisodeId = episode.episodeId,
             isLoadingComments = false,
             errorMessage = if (comments.isEmpty()) "This episode has no danmaku" else null,
           )
@@ -877,6 +880,86 @@ class PlayerViewModel(
     val query = _danmakuState.value.searchQuery
     danmakuPreferences.enabled.set(false)
     _danmakuState.value = DanmakuUiState(searchQuery = query)
+  }
+
+  fun loginDanmaku(userName: String, password: String) {
+    viewModelScope.launch {
+      _danmakuState.update { it.copy(errorMessage = "Logging in...") }
+      runCatching {
+        danmakuRepository.login(userName, password)
+      }.onSuccess { result ->
+        danmakuAuthStore.saveLogin(result)
+        _danmakuState.update {
+          it.copy(errorMessage = "Logged in as ${result.userName}")
+        }
+        playerUpdate.value = PlayerUpdates.ShowText("Logged in as ${result.userName}")
+      }.onFailure { error ->
+        _danmakuState.update {
+          it.copy(errorMessage = "Login failed: ${error.message}")
+        }
+      }
+    }
+  }
+
+  fun isDanmakuLoggedIn(): Boolean = danmakuAuthStore.isLoggedIn
+  fun danmakuUserName(): String? = danmakuAuthStore.userName
+
+  fun logoutDanmaku() {
+    danmakuAuthStore.logout()
+    _danmakuState.update { it.copy(errorMessage = "Logged out") }
+    playerUpdate.value = PlayerUpdates.ShowText("Logged out")
+  }
+
+  fun sendDanmakuComment(text: String, mode: Int) {
+    val episodeId = _danmakuState.value.loadedEpisodeId ?: return
+    val token = danmakuAuthStore.token ?: return
+    val trimmedText = text.trim().take(100)
+    if (trimmedText.isBlank()) return
+    val color = danmakuPreferences.sendColor.get().coerceIn(0, 0xFFFFFF)
+
+    viewModelScope.launch {
+      _danmakuState.update { it.copy(isSendingComment = true, errorMessage = null) }
+      val time = MPVLib.getPropertyDouble("time-pos")?.toFloat() ?: 0f
+
+      runCatching {
+        danmakuRepository.sendComment(
+          episodeId = episodeId,
+          time = time,
+          mode = mode,
+          color = color,
+          comment = trimmedText,
+          token = token,
+        )
+      }.onSuccess { result ->
+        if (result.success) {
+          val newComment = DanmakuComment(
+            time = time,
+            type = mode,
+            color = color.toLong(),
+            text = trimmedText,
+            repeatCount = 1,
+          )
+          val merged = _danmakuState.value.comments.toMutableList()
+          merged.add(newComment)
+          val reassigned = assignDanmakuRows(merged.sortedBy { it.time })
+          _danmakuState.update {
+            it.copy(isSendingComment = false, comments = reassigned)
+          }
+          playerUpdate.value = PlayerUpdates.ShowText("Danmaku sent")
+        } else {
+          if (result.errorCode == 401) {
+            danmakuAuthStore.logout()
+          }
+          _danmakuState.update {
+            it.copy(isSendingComment = false, errorMessage = result.errorMessage ?: "Send failed")
+          }
+        }
+      }.onFailure { error ->
+        _danmakuState.update {
+          it.copy(isSendingComment = false, errorMessage = "Send failed: ${error.message}")
+        }
+      }
+    }
   }
 
   fun setCurrentFilePath(filePath: String?) {
@@ -940,6 +1023,7 @@ class PlayerViewModel(
                 comments = comments,
                 enabled = enableOnSuccess,
                 loadedLabel = "${episode.title} (auto)",
+                loadedEpisodeId = episode.episodeId,
                 isAutoMatching = false,
                 errorMessage = null,
               )

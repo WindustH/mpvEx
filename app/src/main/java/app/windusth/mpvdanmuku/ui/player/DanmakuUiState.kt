@@ -17,4 +17,6 @@ data class DanmakuUiState(
   val isLoadingComments: Boolean = false,
   val isAutoMatching: Boolean = false,
   val errorMessage: String? = null,
+  val loadedEpisodeId: Long? = null,
+  val isSendingComment: Boolean = false,
 )

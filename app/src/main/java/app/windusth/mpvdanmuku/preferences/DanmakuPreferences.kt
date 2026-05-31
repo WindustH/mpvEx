@@ -19,4 +19,6 @@ class DanmakuPreferences(
   val mergeDuplicates = preferenceStore.getBoolean("danmaku_merge_duplicates", true)
   val mergeDuplicateWindow = preferenceStore.getFloat("danmaku_merge_duplicate_window", 3f)
   val mergeDuplicateThreshold = preferenceStore.getInt("danmaku_merge_duplicate_threshold", 3)
+  val sendMode = preferenceStore.getInt("danmaku_send_mode", 1)
+  val sendColor = preferenceStore.getInt("danmaku_send_color", 0xFFFFFF)
 }

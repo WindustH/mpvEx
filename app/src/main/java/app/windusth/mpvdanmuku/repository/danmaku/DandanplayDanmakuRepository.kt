@@ -58,6 +58,20 @@ data class ParsedDanmakuTitle(
   val episode: Int?,
 )
 
+data class DanmakuLoginResult(
+  val token: String,
+  val tokenExpireTime: String,
+  val userId: Int,
+  val userName: String,
+)
+
+data class SendCommentResult(
+  val success: Boolean,
+  val cid: Long = 0,
+  val errorCode: Int = 0,
+  val errorMessage: String? = null,
+)
+
 class DandanplayDanmakuRepository(
   private val client: OkHttpClient,
   private val json: Json,
@@ -158,6 +172,76 @@ class DandanplayDanmakuRepository(
       )
     } else {
       null
+      }
+  }
+
+  suspend fun login(userName: String, password: String): DanmakuLoginResult =
+    withContext(Dispatchers.IO) {
+      val timestamp = (System.currentTimeMillis() / 1000L).toString()
+      val hash = md5(APP_ID + password + timestamp + userName + APP_SECRET)
+
+      val body = json.encodeToString(LoginRequestDto.serializer(), LoginRequestDto(
+        userName = userName,
+        password = password,
+        appId = APP_ID,
+        unixTimestamp = timestamp.toLong(),
+        hash = hash,
+      ))
+
+      val response = post("$API_SERVER/api/v2/login", body)
+      val result = json.decodeFromString<LoginResponseDto>(response)
+      if (!result.success) {
+        throw IOException(result.errorMessage ?: "Login failed (code: ${result.errorCode})")
+      }
+      val token = result.token ?: throw IOException("Login succeeded but no token returned")
+      DanmakuLoginResult(
+        token = token,
+        tokenExpireTime = result.tokenExpireTime ?: "",
+        userId = result.userId ?: 0,
+        userName = result.userName ?: userName,
+      )
+    }
+
+  suspend fun sendComment(
+    episodeId: Long,
+    time: Float,
+    mode: Int,
+    color: Int,
+    comment: String,
+    token: String,
+  ): SendCommentResult = withContext(Dispatchers.IO) {
+    val body = json.encodeToString(SendCommentRequestDto.serializer(), SendCommentRequestDto(
+      time = time.toDouble(),
+      mode = mode,
+      color = color,
+      comment = comment.trim().take(100),
+    ))
+
+    val mediaType = "application/json".toMediaType()
+    val request = Request.Builder()
+      .url("$API_SERVER/api/v2/comment/$episodeId")
+      .post(body.toRequestBody(mediaType))
+      .addDandanplayHeaders("$API_SERVER/api/v2/comment/$episodeId")
+      .header("Authorization", "Bearer $token")
+      .build()
+
+    client.newCall(request).execute().use { response ->
+      val responseBody = response.body?.string().orEmpty()
+      if (response.isSuccessful && responseBody.isNotBlank()) {
+        val result = json.decodeFromString<SendCommentResponseDto>(responseBody)
+        SendCommentResult(
+          success = result.success,
+          cid = result.cid,
+          errorCode = result.errorCode,
+          errorMessage = result.errorMessage,
+        )
+      } else {
+        SendCommentResult(
+          success = false,
+          errorCode = response.code,
+          errorMessage = "HTTP ${response.code}",
+        )
+      }
     }
   }
 
@@ -531,6 +615,12 @@ class DandanplayDanmakuRepository(
       return num.toString()
     }
 
+    private fun md5(input: String): String {
+      val md = MessageDigest.getInstance("MD5")
+      return md.digest(input.toByteArray(StandardCharsets.UTF_8))
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+    }
+
     private const val CHUNK_SIZE = 16L * 1024L * 1024L
     const val API_SERVER = "https://api.dandanplay.net"
     const val USER_AGENT = "mpvEx/1.0"
@@ -604,4 +694,40 @@ private data class MatchItemDto(
   val animeTitle: String = "",
   val episodeTitle: String = "",
   val episodeId: Long = 0,
+)
+
+@Serializable
+private data class LoginRequestDto(
+  val userName: String,
+  val password: String,
+  val appId: String,
+  val unixTimestamp: Long,
+  val hash: String,
+)
+
+@Serializable
+private data class LoginResponseDto(
+  val success: Boolean = false,
+  val errorCode: Int = 0,
+  val errorMessage: String? = null,
+  val token: String? = null,
+  val tokenExpireTime: String? = null,
+  val userId: Int? = null,
+  val userName: String? = null,
+)
+
+@Serializable
+private data class SendCommentRequestDto(
+  val time: Double,
+  val mode: Int,
+  val color: Int,
+  val comment: String,
+)
+
+@Serializable
+private data class SendCommentResponseDto(
+  val success: Boolean = false,
+  val errorCode: Int = 0,
+  val errorMessage: String? = null,
+  val cid: Long = 0,
 )

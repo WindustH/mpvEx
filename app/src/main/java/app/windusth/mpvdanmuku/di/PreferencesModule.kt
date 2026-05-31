@@ -5,6 +5,7 @@ import app.windusth.mpvdanmuku.preferences.AdvancedPreferences
 import app.windusth.mpvdanmuku.preferences.AppearancePreferences
 import app.windusth.mpvdanmuku.preferences.AudioPreferences
 import app.windusth.mpvdanmuku.preferences.BrowserPreferences
+import app.windusth.mpvdanmuku.preferences.DanmakuAuthStore
 import app.windusth.mpvdanmuku.preferences.DanmakuPreferences
 import app.windusth.mpvdanmuku.preferences.DecoderPreferences
 import app.windusth.mpvdanmuku.preferences.FoldersPreferences
@@ -32,6 +33,7 @@ val PreferencesModule =
     singleOf(::AudioPreferences)
     singleOf(::AdvancedPreferences)
     single { BrowserPreferences(get(), androidContext()) }
+    single { DanmakuAuthStore(androidContext()) }
     singleOf(::FoldersPreferences)
     singleOf(::SettingsManager)
   }

@@ -4,14 +4,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -24,6 +27,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,6 +45,9 @@ import app.windusth.mpvdanmuku.ui.theme.spacing
 @Composable
 fun DanmakuSheet(
   state: DanmakuUiState,
+  isLoggedIn: Boolean,
+  userName: String?,
+  defaultSendMode: Int,
   onQueryChange: (String) -> Unit,
   onSearch: () -> Unit,
   onSelectAnime: (DanmakuAnime) -> Unit,
@@ -44,6 +55,7 @@ fun DanmakuSheet(
   onLoadEpisode: (DanmakuEpisode) -> Unit,
   onToggle: () -> Unit,
   onClear: () -> Unit,
+  onSendComment: (String, Int) -> Unit,
   onDismissRequest: () -> Unit,
 ) {
   PlayerSheet(onDismissRequest) {
@@ -140,6 +152,74 @@ fun DanmakuSheet(
 
       if (state.isSearching || state.isLoadingEpisodes || state.isLoadingComments || state.isAutoMatching) {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+      }
+
+      if (isLoggedIn && state.loadedEpisodeId != null) {
+        var sendText by remember { mutableStateOf("") }
+        var selectedMode by remember { mutableStateOf(if (defaultSendMode in listOf(1, 4, 5)) defaultSendMode else 1) }
+
+        var wasSending by remember { mutableStateOf(false) }
+        LaunchedEffect(state.isSendingComment) {
+          if (wasSending && !state.isSendingComment && state.errorMessage == null) {
+            sendText = ""
+          }
+          wasSending = state.isSendingComment
+        }
+
+        HorizontalDivider()
+
+        Text(
+          text = if (userName != null) "Send as $userName" else "Send danmaku",
+          style = MaterialTheme.typography.titleSmall,
+        )
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          OutlinedTextField(
+            value = sendText,
+            onValueChange = { if (it.length <= 100) sendText = it },
+            label = { Text("Comment") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+            enabled = !state.isSendingComment,
+          )
+          Button(
+              onClick = { onSendComment(sendText, selectedMode) },
+            enabled = sendText.isNotBlank() && !state.isSendingComment,
+          ) {
+            if (state.isSendingComment) {
+              CircularProgressIndicator(strokeWidth = 2.dp)
+            } else {
+              Icon(Icons.Default.Send, contentDescription = "Send")
+            }
+          }
+        }
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small),
+        ) {
+          listOf(1 to "Scroll", 4 to "Bottom", 5 to "Top").forEach { (mode, label) ->
+            TextButton(
+              onClick = { selectedMode = mode },
+            ) {
+              Text(
+                text = label,
+                color = if (selectedMode == mode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+              )
+            }
+          }
+        }
+      } else if (!isLoggedIn && state.loadedEpisodeId != null) {
+        HorizontalDivider()
+        Text(
+          text = "Login to send danmaku",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.outline,
+        )
       }
 
       if (state.selectedAnime != null) {
