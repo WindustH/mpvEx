@@ -49,10 +49,6 @@ android {
       versionNameSuffix = "-fdroid"
       buildConfigField("boolean", "ENABLE_UPDATE_FEATURE", "false")
       buildConfigField("boolean", "SCOPED_STORAGE_ONLY", "false")
-
-      ndk {
-        abiFilters += "arm64-v8a"
-      }
     }
   }
 
@@ -65,8 +61,8 @@ android {
     abi {
       isEnable = true
       reset()
-      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-      isUniversalApk = true
+      include("arm64-v8a")
+      isUniversalApk = false
     }
   }
 

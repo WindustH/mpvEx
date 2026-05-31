@@ -44,9 +44,21 @@ fun DanmakuOverlay(
   shadow: Float = 1f,
   paused: Boolean = false,
   playbackSpeed: Float = 1f,
+  mergeEnabled: Boolean = true,
+  mergeWindow: Float = 3f,
+  mergeThreshold: Int = 3,
   modifier: Modifier = Modifier,
 ) {
-  if (!enabled || comments.isEmpty()) return
+  val processedComments = remember(comments, mergeEnabled, mergeWindow, mergeThreshold) {
+    val merged = if (mergeEnabled) {
+      mergeDuplicateDanmaku(comments, mergeWindow.coerceIn(0.5f, 30f), mergeThreshold.coerceIn(2, 100))
+    } else {
+      comments
+    }
+    assignDanmakuRows(merged)
+  }
+
+  if (!enabled || processedComments.isEmpty()) return
 
   var renderedPosition by remember { mutableStateOf(positionSeconds) }
   var anchorPosition by remember { mutableStateOf(positionSeconds) }
@@ -59,12 +71,12 @@ fun DanmakuOverlay(
     renderedPosition = positionSeconds
   }
 
-  LaunchedEffect(enabled, comments, frameRate, paused, playbackSpeed) {
+  LaunchedEffect(enabled, processedComments, frameRate, paused, playbackSpeed) {
     val fps = frameRate.coerceIn(24f, 120f).roundToInt().coerceAtLeast(1)
     val frameIntervalNanos = 1_000_000_000L / fps
     var lastFrameNanos = 0L
 
-    while (isActive && enabled && comments.isNotEmpty()) {
+    while (isActive && enabled && processedComments.isNotEmpty()) {
       val now = withFrameNanos { it }
       if (lastFrameNanos == 0L || now - lastFrameNanos >= frameIntervalNanos) {
         if (anchorFrameNanos == 0L) {
@@ -85,7 +97,7 @@ fun DanmakuOverlay(
   BoxWithConstraints(
     modifier = modifier.clipToBounds(),
   ) {
-    val sortedComments = remember(comments) { comments.sortedBy { it.time } }
+    val sortedComments = remember(processedComments) { processedComments.sortedBy { it.time } }
     val density = LocalDensity.current
     val widthPx = with(density) { maxWidth.toPx() }
     val heightPx = with(density) { maxHeight.toPx() }
@@ -205,4 +217,52 @@ private fun List<DanmakuComment>.lowerBoundByTime(target: Float): Int {
     }
   }
   return low
+}
+
+internal fun mergeDuplicateDanmaku(comments: List<DanmakuComment>, window: Float, threshold: Int): List<DanmakuComment> {
+  data class BucketKey(val type: Int, val normalizedText: String)
+
+  fun normalize(text: String): String = text.trim().replace(Regex("\\s+"), " ")
+
+  fun mergeOneTextGroup(group: List<DanmakuComment>): List<DanmakuComment> {
+    if (group.size < threshold) return group
+    val sorted = group.sortedBy { it.time }
+    val merged = ArrayList<DanmakuComment>(sorted.size)
+    var i = 0
+    while (i < sorted.size) {
+      val start = sorted[i]
+      var j = i
+      while (j < sorted.size && sorted[j].time <= start.time + window) j++
+      val count = j - i
+      if (count >= threshold) {
+        merged.add(start.copy(repeatCount = count))
+        i = j
+      } else {
+        merged.add(start)
+        i++
+      }
+    }
+    return merged
+  }
+
+  return comments
+    .groupBy { BucketKey(it.type, normalize(it.text)) }
+    .flatMap { (_, group) -> mergeOneTextGroup(group) }
+    .sortedBy { it.time }
+}
+
+internal fun assignDanmakuRows(comments: List<DanmakuComment>): List<DanmakuComment> {
+  var rollingRow = 0
+  var topRow = 0
+  var bottomRow = 0
+
+  return comments
+    .sortedBy { it.time }
+    .map { comment ->
+      when (comment.type) {
+        4 -> comment.copy(row = bottomRow++)
+        5 -> comment.copy(row = topRow++)
+        else -> comment.copy(row = rollingRow++)
+      }
+    }
 }

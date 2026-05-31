@@ -403,11 +403,15 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         
         // Copy data from old table, handling missing columns
         if (hasExternalSubtitles && hasHasBeenWatched) {
-          // Schema is correct, just copy everything
+          // Schema is correct, copy with explicit columns for safety
           db.execSQL(
             """
             INSERT INTO `PlaybackStateEntity_new` 
-            SELECT * FROM `PlaybackStateEntity`
+            (`mediaTitle`, `lastPosition`, `playbackSpeed`, `videoZoom`, `sid`, `secondarySid`, 
+             `subDelay`, `subSpeed`, `aid`, `audioDelay`, `timeRemaining`, `externalSubtitles`, `hasBeenWatched`)
+            SELECT `mediaTitle`, `lastPosition`, `playbackSpeed`, `videoZoom`, `sid`, `secondarySid`, 
+                   `subDelay`, `subSpeed`, `aid`, `audioDelay`, `timeRemaining`, `externalSubtitles`, `hasBeenWatched`
+            FROM `PlaybackStateEntity`
             """.trimIndent()
           )
         } else if (hasExternalSubtitles && !hasHasBeenWatched) {

@@ -25,7 +25,7 @@ import app.windusth.mpvdanmuku.domain.network.NetworkConnection
     PlaylistEntity::class,
     PlaylistItemEntity::class,
   ],
-  version = 8,
+  version = 9,
   exportSchema = true,
 )
 @TypeConverters(NetworkProtocolConverter::class)

@@ -64,22 +64,8 @@ class SmbClient(private val connection: NetworkConnection) : NetworkClient {
           return@withContext Result.failure(Exception("Host not found: ${connection.host}"))
         }
 
-        // Check if the resolved host is reachable
-        val isHostReachable = try {
-          withTimeout(3000) {
-            resolvedAddress.isReachable(2000)
-          }
-        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-          false
-        } catch (e: Exception) {
-          true // Continue anyway if ping fails
-        }
-
-        if (!isHostReachable) {
-          return@withContext Result.failure(Exception("Host ${connection.host} is not reachable on the network"))
-        }
-
-        // Use the resolved IP address
+        // Use the resolved IP address directly - skip ping since
+        // many SMB servers block ICMP but allow port 445 connections
         val hostForUrl = resolvedAddress.hostAddress ?: connection.host
         resolvedHostIp = hostForUrl
 

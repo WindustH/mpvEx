@@ -321,6 +321,9 @@ fun PlayerControls(
         val danmakuBold by danmakuPrefs.bold.collectAsState()
         val danmakuOutline by danmakuPrefs.outline.collectAsState()
         val danmakuShadow by danmakuPrefs.shadow.collectAsState()
+        val danmakuMergeDuplicates by danmakuPrefs.mergeDuplicates.collectAsState()
+        val danmakuMergeWindow by danmakuPrefs.mergeDuplicateWindow.collectAsState()
+        val danmakuMergeThreshold by danmakuPrefs.mergeDuplicateThreshold.collectAsState()
 
         val activity = LocalActivity.current as PlayerActivity
         val aspect by viewModel.videoAspect.collectAsState()
@@ -339,6 +342,9 @@ fun PlayerControls(
           bold = danmakuBold,
           outline = danmakuOutline,
           shadow = danmakuShadow,
+          mergeEnabled = danmakuMergeDuplicates,
+          mergeWindow = danmakuMergeWindow,
+          mergeThreshold = danmakuMergeThreshold,
           paused = paused == true,
           playbackSpeed = playbackSpeed ?: 1f,
           modifier = Modifier.constrainAs(danmakuOverlay) {

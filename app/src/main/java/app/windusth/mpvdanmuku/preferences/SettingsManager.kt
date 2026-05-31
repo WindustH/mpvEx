@@ -184,6 +184,7 @@ class SettingsManager(
     serializer.attribute(null, "isAnonymous", connection.isAnonymous.toString())
     serializer.attribute(null, "lastConnected", connection.lastConnected.toString())
     serializer.attribute(null, "autoConnect", connection.autoConnect.toString())
+    serializer.attribute(null, "useHttps", connection.useHttps.toString())
     serializer.endTag(null, TAG_NETWORK_CONNECTION)
   }
 
@@ -290,12 +291,13 @@ class SettingsManager(
       isAnonymous = parser.getAttributeValue(null, "isAnonymous")?.toBoolean() ?: false,
       lastConnected = parser.getAttributeValue(null, "lastConnected")?.toLongOrNull() ?: 0L,
       autoConnect = parser.getAttributeValue(null, "autoConnect")?.toBoolean() ?: false,
+      useHttps = parser.getAttributeValue(null, "useHttps")?.toBoolean() ?: false,
     )
   }
 
   fun getDefaultExportFilename(): String {
     val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-    return "mpvEx_settings_${dateFormat.format(Date())}.xml"
+    return "mpvDanmuku_settings_${dateFormat.format(Date())}.xml"
   }
 
   data class ImportStats(

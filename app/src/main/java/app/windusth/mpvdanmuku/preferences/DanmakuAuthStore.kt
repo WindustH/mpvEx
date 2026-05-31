@@ -30,7 +30,7 @@ class DanmakuAuthStore(context: Context) {
         val expireDate = fmt.parse(expireStr)
         expireDate != null && expireDate.after(Date())
       } catch (_: Exception) {
-        true
+        false
       }
     }
 

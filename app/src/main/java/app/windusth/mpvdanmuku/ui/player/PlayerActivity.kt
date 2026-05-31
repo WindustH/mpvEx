@@ -1140,7 +1140,7 @@ class PlayerActivity :
     extras?.getStringArray("headers")?.let { headers ->
       if (headers.isEmpty()) return@let
 
-      if (headers[0].startsWith("User-Agent", ignoreCase = true)) {
+      if (headers[0].startsWith("User-Agent", ignoreCase = true) && headers.size > 1) {
         MPVLib.setPropertyString("user-agent", headers[1])
       }
 

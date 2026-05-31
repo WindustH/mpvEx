@@ -156,12 +156,12 @@ fun PermissionDeniedState(
             Text(
               text = if (isPlayStoreBuild) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                  "mpvEx requires \"Photos and videos\" permission to access and play your video files stored on your device."
+                  "mpvDanmuku requires \"Photos and videos\" permission to access and play your video files stored on your device."
                 } else {
-                  "mpvEx requires \"Storage\" permission to access and play your media files stored on your device."
+                  "mpvDanmuku requires \"Storage\" permission to access and play your media files stored on your device."
                 }
               } else {
-                "mpvEx requires \"All file access\" permission to discover media and subtitles on your device due to a change in security policy in Android 11 and later versions."
+                "mpvDanmuku requires \"All file access\" permission to discover media and subtitles on your device due to a change in security policy in Android 11 and later versions."
               },
               style = MaterialTheme.typography.bodyLarge,
               color = MaterialTheme.colorScheme.onSurface,

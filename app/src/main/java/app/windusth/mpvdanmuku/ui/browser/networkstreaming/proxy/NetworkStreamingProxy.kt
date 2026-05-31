@@ -170,6 +170,13 @@ class NetworkStreamingProxy private constructor() : NanoHTTPD("127.0.0.1", 0) {
     }
 
     val fileSize = streamInfo.fileSize
+    if (end == null && fileSize < 0) {
+      return newFixedLengthResponse(
+        Response.Status.RANGE_NOT_SATISFIABLE,
+        MIME_PLAINTEXT,
+        "Range requests not supported for streams of unknown size",
+      )
+    }
     val rangeEnd = end ?: (fileSize - 1)
     val contentLength = rangeEnd - start + 1
 
