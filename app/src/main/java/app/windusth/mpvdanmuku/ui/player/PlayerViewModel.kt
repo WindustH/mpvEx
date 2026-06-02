@@ -57,8 +57,8 @@ import org.koin.core.component.inject
 import java.io.File
 import androidx.documentfile.provider.DocumentFile
 import app.windusth.mpvdanmuku.preferences.AdvancedPreferences
+import app.windusth.mpvdanmuku.preferences.DandanplayOAuthStore
 import app.windusth.mpvdanmuku.preferences.DanmakuPreferences
-import app.windusth.mpvdanmuku.preferences.DanmakuAuthStore
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
 
@@ -99,7 +99,7 @@ class PlayerViewModel(
   private val wyzieRepository: WyzieSearchRepository by inject()
   private val danmakuRepository: DandanplayDanmakuRepository by inject()
   val danmakuPreferences: DanmakuPreferences by inject()
-  private val danmakuAuthStore: DanmakuAuthStore by inject()
+  private val dandanplayOAuthStore: DandanplayOAuthStore by inject()
 
   private var currentFilePath: String? = null
 
@@ -892,37 +892,21 @@ class PlayerViewModel(
     durationPollJob = null
   }
 
-  fun loginDanmaku(userName: String, password: String) {
-    viewModelScope.launch {
-      _danmakuState.update { it.copy(errorMessage = "Logging in...") }
-      runCatching {
-        danmakuRepository.login(userName, password)
-      }.onSuccess { result ->
-        danmakuAuthStore.saveLogin(result)
-        _danmakuState.update {
-          it.copy(errorMessage = "Logged in as ${result.userName}")
-        }
-        playerUpdate.value = PlayerUpdates.ShowText("Logged in as ${result.userName}")
-      }.onFailure { error ->
-        _danmakuState.update {
-          it.copy(errorMessage = "Login failed: ${error.message}")
-        }
-      }
-    }
-  }
-
-  fun isDanmakuLoggedIn(): Boolean = danmakuAuthStore.isLoggedIn
-  fun danmakuUserName(): String? = danmakuAuthStore.userName
+  fun isDanmakuLoggedIn(): Boolean = dandanplayOAuthStore.current.isAuthorized
+  fun danmakuUserName(): String? = dandanplayOAuthStore.current.userName
 
   fun logoutDanmaku() {
-    danmakuAuthStore.logout()
+    dandanplayOAuthStore.logout()
     _danmakuState.update { it.copy(errorMessage = "Logged out") }
     playerUpdate.value = PlayerUpdates.ShowText("Logged out")
   }
 
   fun sendDanmakuComment(text: String, mode: Int) {
     val episodeId = _danmakuState.value.loadedEpisodeId ?: return
-    val token = danmakuAuthStore.token ?: return
+    if (!dandanplayOAuthStore.current.isAuthorized) {
+      _danmakuState.update { it.copy(errorMessage = "Authorize dandanplay before sending danmaku") }
+      return
+    }
     val trimmedText = text.trim().take(100)
     if (trimmedText.isBlank()) return
     val color = danmakuPreferences.sendColor.get().coerceIn(0, 0xFFFFFF)
@@ -932,13 +916,12 @@ class PlayerViewModel(
       val time = MPVLib.getPropertyDouble("time-pos")?.toFloat() ?: 0f
 
       runCatching {
-        danmakuRepository.sendComment(
+        danmakuRepository.sendCommentAuthorized(
           episodeId = episodeId,
           time = time,
           mode = mode,
           color = color,
           comment = trimmedText,
-          token = token,
         )
       }.onSuccess { result ->
         if (result.success) {
@@ -948,6 +931,7 @@ class PlayerViewModel(
             color = color.toLong(),
             text = trimmedText,
             repeatCount = 1,
+            isSelf = true,
           )
           val merged = _danmakuState.value.comments.toMutableList()
           merged.add(newComment)
@@ -956,9 +940,6 @@ class PlayerViewModel(
           }
           playerUpdate.value = PlayerUpdates.ShowText("Danmaku sent")
         } else {
-          if (result.errorCode == 401) {
-            danmakuAuthStore.logout()
-          }
           _danmakuState.update {
             it.copy(isSendingComment = false, errorMessage = result.errorMessage ?: "Send failed")
           }

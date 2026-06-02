@@ -19,17 +19,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,12 +45,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.windusth.mpvdanmuku.database.entities.BookmarkEntity
 import app.windusth.mpvdanmuku.presentation.Screen
+import app.windusth.mpvdanmuku.ui.browser.LocalNavigationBarHeight
 import app.windusth.mpvdanmuku.ui.browser.components.BrowserTopBar
-import app.windusth.mpvdanmuku.ui.browser.filesystem.FileSystemBrowserRootScreen
-import app.windusth.mpvdanmuku.ui.browser.filesystem.FileSystemBrowserScreen
 import app.windusth.mpvdanmuku.ui.browser.filesystem.FileSystemDirectoryScreen
 import app.windusth.mpvdanmuku.ui.browser.networkstreaming.NetworkBrowserScreen
 import app.windusth.mpvdanmuku.ui.browser.states.EmptyState
+import app.windusth.mpvdanmuku.ui.preferences.PreferencesScreen
 import app.windusth.mpvdanmuku.ui.utils.LocalBackStack
 import kotlinx.serialization.Serializable
 
@@ -57,6 +63,19 @@ object BookmarksScreen : Screen {
     val bookmarks by viewModel.bookmarks.collectAsState()
     val backstack = LocalBackStack.current
 
+    var renamingBookmark by remember { mutableStateOf<BookmarkEntity?>(null) }
+
+    if (renamingBookmark != null) {
+      RenameBookmarkDialog(
+        currentName = renamingBookmark!!.name,
+        onConfirm = { newName ->
+          viewModel.renameBookmark(renamingBookmark!!, newName)
+          renamingBookmark = null
+        },
+        onDismiss = { renamingBookmark = null },
+      )
+    }
+
     Scaffold(
       topBar = {
         BrowserTopBar(
@@ -66,34 +85,34 @@ object BookmarksScreen : Screen {
           totalCount = bookmarks.size,
           onCancelSelection = { },
           onSettingsClick = {
-            backstack.add(app.windusth.mpvdanmuku.ui.preferences.PreferencesScreen)
-          }
+            backstack.add(PreferencesScreen)
+          },
         )
-      }
+      },
     ) { paddingValues ->
       if (bookmarks.isEmpty()) {
         Box(
           modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues),
-          contentAlignment = Alignment.Center
+          contentAlignment = Alignment.Center,
         ) {
           EmptyState(
             icon = Icons.Filled.Folder,
             title = "No Bookmarks",
-            message = "You haven't bookmarked any folders yet."
+            message = "You haven't bookmarked any folders yet.",
           )
         }
       } else {
-        val navigationBarHeight = app.windusth.mpvdanmuku.ui.browser.LocalNavigationBarHeight.current
+        val navigationBarHeight = LocalNavigationBarHeight.current
         LazyColumn(
           modifier = Modifier.fillMaxSize(),
           contentPadding = PaddingValues(
             start = 8.dp,
             end = 8.dp,
             top = paddingValues.calculateTopPadding() + 8.dp,
-            bottom = navigationBarHeight + 8.dp
-          )
+            bottom = navigationBarHeight + 8.dp,
+          ),
         ) {
           items(bookmarks, key = { it.id }) { bookmark ->
             BookmarkCard(
@@ -104,15 +123,15 @@ object BookmarksScreen : Screen {
                     NetworkBrowserScreen(
                       connectionId = bookmark.connectionId ?: 0L,
                       connectionName = bookmark.name,
-                      currentPath = bookmark.path
-                    )
+                      currentPath = bookmark.path,
+                    ),
                   )
                 } else {
-                  // Navigate to Local File Browser
                   backstack.add(FileSystemDirectoryScreen(path = bookmark.path))
                 }
               },
-              onDeleteClick = { viewModel.deleteBookmark(bookmark) }
+              onDeleteClick = { viewModel.deleteBookmark(bookmark) },
+              onRenameClick = { renamingBookmark = bookmark },
             )
           }
         }
@@ -126,32 +145,36 @@ private fun BookmarkCard(
   bookmark: BookmarkEntity,
   onClick: () -> Unit,
   onDeleteClick: () -> Unit,
-  modifier: Modifier = Modifier
+  onRenameClick: () -> Unit,
+  modifier: Modifier = Modifier,
 ) {
   Card(
     modifier = modifier
       .fillMaxWidth()
-      .combinedClickable(onClick = onClick),
-    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+      .combinedClickable(
+        onClick = onClick,
+        onLongClick = onRenameClick,
+      ),
+    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
   ) {
     Row(
       modifier = Modifier
         .fillMaxWidth()
         .padding(12.dp),
-      verticalAlignment = Alignment.CenterVertically
+      verticalAlignment = Alignment.CenterVertically,
     ) {
       Box(
         modifier = Modifier
-          .size(56.dp)
+          .size(64.dp)
           .clip(RoundedCornerShape(12.dp))
           .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
       ) {
         Icon(
           if (bookmark.type == "NETWORK") Icons.Filled.Language else Icons.Filled.Folder,
           contentDescription = null,
-          modifier = Modifier.size(32.dp),
-          tint = MaterialTheme.colorScheme.secondary
+          modifier = Modifier.size(48.dp),
+          tint = MaterialTheme.colorScheme.secondary,
         )
       }
       Spacer(modifier = Modifier.width(16.dp))
@@ -161,23 +184,59 @@ private fun BookmarkCard(
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onSurface,
           maxLines = 1,
-          overflow = TextOverflow.Ellipsis
+          overflow = TextOverflow.Ellipsis,
         )
         Text(
           text = bookmark.path,
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           maxLines = 1,
-          overflow = TextOverflow.Ellipsis
+          overflow = TextOverflow.Ellipsis,
         )
       }
       IconButton(onClick = onDeleteClick) {
         Icon(
           Icons.Filled.Delete,
           contentDescription = "Delete Bookmark",
-          tint = MaterialTheme.colorScheme.error
+          tint = MaterialTheme.colorScheme.error,
         )
       }
     }
   }
+}
+
+@Composable
+private fun RenameBookmarkDialog(
+  currentName: String,
+  onConfirm: (String) -> Unit,
+  onDismiss: () -> Unit,
+) {
+  var name by remember { mutableStateOf(currentName) }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("Rename Bookmark") },
+    text = {
+      OutlinedTextField(
+        value = name,
+        onValueChange = { name = it },
+        label = { Text("Name") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+      )
+    },
+    confirmButton = {
+      TextButton(
+        onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
+        enabled = name.isNotBlank(),
+      ) {
+        Text("OK")
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) {
+        Text("Cancel")
+      }
+    },
+  )
 }

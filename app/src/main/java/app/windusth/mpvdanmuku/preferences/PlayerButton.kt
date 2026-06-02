@@ -20,7 +20,6 @@ import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.BlurOn
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Segment
 import androidx.compose.material.icons.outlined.ZoomIn
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.Shuffle

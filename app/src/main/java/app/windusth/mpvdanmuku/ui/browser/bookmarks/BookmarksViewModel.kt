@@ -22,4 +22,10 @@ class BookmarksViewModel : ViewModel(), KoinComponent {
             bookmarkDao.deleteBookmark(bookmark)
         }
     }
+
+    fun renameBookmark(bookmark: BookmarkEntity, newName: String) {
+        viewModelScope.launch {
+            bookmarkDao.updateBookmarkName(bookmark.id, newName)
+        }
+    }
 }

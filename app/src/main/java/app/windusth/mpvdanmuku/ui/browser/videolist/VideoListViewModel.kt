@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.windusth.mpvdanmuku.database.dao.BookmarkDao
+import app.windusth.mpvdanmuku.database.entities.BookmarkEntity
 import app.windusth.mpvdanmuku.domain.media.model.Video
 import app.windusth.mpvdanmuku.domain.playbackstate.repository.PlaybackStateRepository
 import app.windusth.mpvdanmuku.repository.MediaFileRepository
@@ -47,6 +49,7 @@ class VideoListViewModel(
   private val appearancePreferences: app.windusth.mpvdanmuku.preferences.AppearancePreferences by inject()
   private val browserPreferences: app.windusth.mpvdanmuku.preferences.BrowserPreferences by inject()
   private val recentlyPlayedRepository: app.windusth.mpvdanmuku.domain.recentlyplayed.repository.RecentlyPlayedRepository by inject()
+  private val bookmarkDao: BookmarkDao by inject()
   // Using MediaFileRepository singleton directly
 
   private val _videos = MutableStateFlow<List<Video>>(emptyList())
@@ -87,6 +90,9 @@ class VideoListViewModel(
 
   private val tag = "VideoListViewModel"
 
+  val isBookmarked: StateFlow<Boolean> = bookmarkDao.isBookmarked(bucketId, "LOCAL", null)
+    .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
   init {
     loadVideos()
 
@@ -117,6 +123,23 @@ class VideoListViewModel(
     viewModelScope.launch(Dispatchers.IO) {
       delay(1500) // Give MediaStore time to index
       loadVideos()
+    }
+  }
+
+  fun toggleBookmark(name: String) {
+    viewModelScope.launch(Dispatchers.IO) {
+      val isCurrentlyBookmarked = bookmarkDao.getBookmark(bucketId, "LOCAL", null) != null
+      if (isCurrentlyBookmarked) {
+        bookmarkDao.deleteBookmarkByPath(bucketId, "LOCAL", null)
+      } else {
+        bookmarkDao.insertBookmark(
+          BookmarkEntity(
+            name = name,
+            path = bucketId,
+            type = "LOCAL",
+          ),
+        )
+      }
     }
   }
 

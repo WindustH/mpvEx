@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import app.windusth.mpvdanmuku.domain.network.ConnectionStatus
 import app.windusth.mpvdanmuku.domain.network.NetworkConnection
 import app.windusth.mpvdanmuku.repository.NetworkRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,10 +37,7 @@ class NetworkStreamingViewModel(
         initialValue = emptyList(),
       )
 
-  /**
-   * Observable connection statuses
-   */
-  val connectionStatuses: StateFlow<Map<Long, ConnectionStatus>> = repository.connectionStatuses
+  val connectionStatuses = repository.connectionStatuses
 
   /**
    * Add a new network connection
@@ -67,32 +63,6 @@ class NetworkStreamingViewModel(
   fun deleteConnection(connection: NetworkConnection) {
     viewModelScope.launch {
       repository.deleteConnection(connection)
-    }
-  }
-
-  /**
-   * Connect to a network share
-   */
-  fun connect(connection: NetworkConnection) {
-    viewModelScope.launch {
-      repository.connect(connection)
-    }
-  }
-
-  /**
-   * Disconnect from a network share
-   */
-  fun disconnect(connection: NetworkConnection) {
-    viewModelScope.launch {
-      repository.disconnect(connection)
-    }
-  }
-
-  override fun onCleared() {
-    super.onCleared()
-    // Clean up all connections when ViewModel is destroyed
-    viewModelScope.launch {
-      repository.disconnectAll()
     }
   }
 

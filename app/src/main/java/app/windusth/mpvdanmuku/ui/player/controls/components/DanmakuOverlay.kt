@@ -1,7 +1,11 @@
 package app.windusth.mpvdanmuku.ui.player.controls.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,6 +27,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.windusth.mpvdanmuku.repository.danmaku.DanmakuComment
 import kotlinx.coroutines.isActive
@@ -135,6 +140,7 @@ fun DanmakuOverlay(
               color = comment.color,
               text = comment.text,
               repeatCount = comment.repeatCount,
+              isSelf = comment.isSelf,
             ),
             comment = comment,
           )
@@ -184,6 +190,8 @@ fun DanmakuOverlay(
       result
     }
 
+    val selfBorderColor = Color(0xFF42A5F5).copy(alpha = alpha) // Blue border for self-sent
+
     visibleComments.forEach { item ->
       key(item.key) {
         val comment = item.comment
@@ -194,6 +202,15 @@ fun DanmakuOverlay(
         }
         val baseColor = Color(0xFF000000L or comment.color)
         val textColor = baseColor.copy(alpha = alpha)
+
+        val selfModifier = if (comment.isSelf) {
+          Modifier
+            .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+            .border(1.5.dp, selfBorderColor, RoundedCornerShape(4.dp))
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+        } else {
+          Modifier
+        }
 
         if (comment.type == 4 || comment.type == 5) {
           val row = comment.row % fixedRows
@@ -210,7 +227,7 @@ fun DanmakuOverlay(
             overflow = TextOverflow.Clip,
             textAlign = TextAlign.Center,
             style = textStyle,
-            modifier = Modifier
+            modifier = selfModifier
               .fillMaxWidth()
               .graphicsLayer { translationY = y },
           )
@@ -228,7 +245,7 @@ fun DanmakuOverlay(
             maxLines = 1,
             overflow = TextOverflow.Visible,
             style = textStyle,
-            modifier = Modifier
+            modifier = selfModifier
               .graphicsLayer {
                 translationX = x
                 translationY = y
@@ -252,6 +269,7 @@ private data class DanmakuRenderKey(
   val color: Long,
   val text: String,
   val repeatCount: Int,
+  val isSelf: Boolean,
 )
 
 private fun estimateTextWidthPx(text: String, fontPx: Float): Float {
@@ -291,6 +309,12 @@ internal fun mergeDuplicateDanmaku(comments: List<DanmakuComment>, window: Float
     var i = 0
     while (i < sorted.size) {
       val start = sorted[i]
+      // Skip self-sent danmaku from merging
+      if (start.isSelf) {
+        merged.add(start)
+        i++
+        continue
+      }
       var j = i
       while (j < sorted.size && sorted[j].time <= start.time + window) j++
       val count = j - i

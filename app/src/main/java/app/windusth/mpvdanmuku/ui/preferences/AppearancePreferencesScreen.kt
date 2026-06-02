@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.windusth.mpvdanmuku.R
 import app.windusth.mpvdanmuku.preferences.AppearancePreferences
+import app.windusth.mpvdanmuku.preferences.BrowserBottomBarTab
 import app.windusth.mpvdanmuku.preferences.BrowserPreferences
 import app.windusth.mpvdanmuku.preferences.GesturePreferences
 import app.windusth.mpvdanmuku.preferences.MultiChoiceSegmentedButton
@@ -38,8 +39,6 @@ import me.zhanghai.compose.preference.SliderPreference
 import me.zhanghai.compose.preference.SwitchPreference
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 
 @Serializable
 object AppearancePreferencesScreen : Screen {
@@ -280,6 +279,38 @@ object AppearancePreferencesScreen : Screen {
                                     )
                                 }
                             )
+
+                            PreferenceDivider()
+
+                            val bottomBarTabs by browserPreferences.bottomBarTabs.collectAsState()
+                            BrowserBottomBarTab.entries.forEachIndexed { index, tab ->
+                                if (index > 0) {
+                                    PreferenceDivider()
+                                }
+
+                                SwitchPreference(
+                                    value = tab.key in bottomBarTabs,
+                                    onValueChange = { visible ->
+                                        val nextTabs = if (visible) {
+                                            bottomBarTabs + tab.key
+                                        } else {
+                                            bottomBarTabs - tab.key
+                                        }
+                                        if (nextTabs.isNotEmpty()) {
+                                            browserPreferences.bottomBarTabs.set(nextTabs)
+                                        }
+                                    },
+                                    title = {
+                                        Text(text = "${tab.displayName} page")
+                                    },
+                                    summary = {
+                                        Text(
+                                            text = "Show in bottom bar",
+                                            color = MaterialTheme.colorScheme.outline,
+                                        )
+                                    },
+                                )
+                            }
                         }
                     }
 

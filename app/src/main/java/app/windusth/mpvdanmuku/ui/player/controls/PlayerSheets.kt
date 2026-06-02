@@ -201,9 +201,6 @@ fun PlayerSheets(
 
       DanmakuSheet(
         state = state,
-        isLoggedIn = viewModel.isDanmakuLoggedIn(),
-        userName = viewModel.danmakuUserName(),
-        defaultSendMode = viewModel.danmakuPreferences.sendMode.get(),
         onQueryChange = viewModel::updateDanmakuSearchQuery,
         onSearch = { viewModel.searchDanmaku() },
         onSelectAnime = viewModel::selectDanmakuAnime,
@@ -211,7 +208,6 @@ fun PlayerSheets(
         onLoadEpisode = viewModel::loadDanmakuEpisode,
         onToggle = viewModel::toggleDanmaku,
         onClear = viewModel::clearDanmaku,
-        onSendComment = viewModel::sendDanmakuComment,
         onDismissRequest = onDismissRequest,
       )
     }

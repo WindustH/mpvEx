@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
@@ -30,16 +31,19 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import app.windusth.mpvdanmuku.preferences.BrowserBottomBarTab
+import app.windusth.mpvdanmuku.preferences.BrowserPreferences
+import app.windusth.mpvdanmuku.preferences.preference.collectAsState
 import app.windusth.mpvdanmuku.presentation.Screen
+import app.windusth.mpvdanmuku.ui.browser.bookmarks.BookmarksScreen
 import app.windusth.mpvdanmuku.ui.browser.folderlist.FolderListScreen
 import app.windusth.mpvdanmuku.ui.browser.networkstreaming.NetworkStreamingScreen
 import app.windusth.mpvdanmuku.ui.browser.playlist.PlaylistScreen
@@ -47,11 +51,12 @@ import app.windusth.mpvdanmuku.ui.browser.recentlyplayed.RecentlyPlayedScreen
 import app.windusth.mpvdanmuku.ui.browser.selection.SelectionManager
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
+import org.koin.compose.koinInject
 
 @Serializable
 object MainScreen : Screen {
   // Use a companion object to store state more persistently
-  private var persistentSelectedTab: Int = 0
+  private var persistentSelectedTab: BrowserBottomBarTab = BrowserBottomBarTab.HOME
   
   // Shared state that can be updated by FileSystemBrowserScreen
   @Volatile
@@ -115,11 +120,13 @@ object MainScreen : Screen {
   @Composable
   @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
   override fun Content() {
-    var selectedTab by remember {
-      mutableIntStateOf(persistentSelectedTab)
+    val browserPreferences = koinInject<BrowserPreferences>()
+    val bottomBarTabKeys by browserPreferences.bottomBarTabs.collectAsState()
+    val visibleTabs = remember(bottomBarTabKeys) {
+      BrowserBottomBarTab.visibleTabs(bottomBarTabKeys)
     }
+    var selectedTab by remember { mutableStateOf(persistentSelectedTab) }
 
-    val context = LocalContext.current
     val density = LocalDensity.current
 
     // Shared state (across the app)
@@ -159,6 +166,12 @@ object MainScreen : Screen {
       persistentSelectedTab = selectedTab
     }
 
+    LaunchedEffect(visibleTabs) {
+      if (selectedTab !in visibleTabs) {
+        selectedTab = visibleTabs.firstOrNull() ?: BrowserBottomBarTab.HOME
+      }
+    }
+
     // Scaffold with bottom navigation bar
     Scaffold(
       modifier = Modifier.fillMaxSize(),
@@ -186,34 +199,18 @@ object MainScreen : Screen {
                 )
               )
           ) {
-            NavigationBarItem(
-              icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
-              label = { Text("Home") },
-              selected = selectedTab == 0,
-              onClick = { selectedTab = 0 }
-            )
-            NavigationBarItem(
-              icon = { Icon(Icons.Filled.History, contentDescription = "Recents") },
-              label = { Text("Recents") },
-              selected = selectedTab == 1,
-              onClick = { selectedTab = 1 }
-            )
-            NavigationBarItem(
-              icon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Playlists") },
-              label = { Text("Playlists") },
-              selected = selectedTab == 2,
-              onClick = { selectedTab = 2 }
-            )
-            NavigationBarItem(
-              icon = { Icon(Icons.Filled.Language, contentDescription = "Network") },
-              label = { Text("Network") },
-              selected = selectedTab == 3,
-              onClick = { selectedTab = 3 }
-            )
+            visibleTabs.forEach { tab ->
+              NavigationBarItem(
+                icon = { Icon(tab.icon, contentDescription = tab.displayName) },
+                label = { Text(tab.displayName) },
+                selected = selectedTab == tab,
+                onClick = { selectedTab = tab },
+              )
+            }
           }
         }
       }
-    ) { paddingValues ->
+    ) { _ ->
       Box(modifier = Modifier.fillMaxSize()) {
         // Always use 80dp bottom padding regardless of navigation bar visibility
         val fabBottomPadding = 80.dp
@@ -225,7 +222,7 @@ object MainScreen : Screen {
             val slideDistance = with(density) { 48.dp.roundToPx() }
             val animationDuration = 250
             
-            if (targetState > initialState) {
+            if (targetState.ordinal > initialState.ordinal) {
               // Moving forward: slide in from right with fade
               (slideInHorizontally(
                 animationSpec = tween(
@@ -283,11 +280,11 @@ object MainScreen : Screen {
             LocalNavigationBarHeight provides fabBottomPadding
           ) {
             when (targetTab) {
-              0 -> FolderListScreen.Content()
-              1 -> app.windusth.mpvdanmuku.ui.browser.bookmarks.BookmarksScreen.Content()
-              2 -> RecentlyPlayedScreen.Content()
-              3 -> PlaylistScreen.Content()
-              4 -> NetworkStreamingScreen.Content()
+              BrowserBottomBarTab.HOME -> FolderListScreen.Content()
+              BrowserBottomBarTab.BOOKMARKS -> BookmarksScreen.Content()
+              BrowserBottomBarTab.RECENTS -> RecentlyPlayedScreen.Content()
+              BrowserBottomBarTab.PLAYLISTS -> PlaylistScreen.Content()
+              BrowserBottomBarTab.NETWORK -> NetworkStreamingScreen.Content()
             }
           }
         }
@@ -298,3 +295,13 @@ object MainScreen : Screen {
 
 // CompositionLocal for navigation bar height
 val LocalNavigationBarHeight = compositionLocalOf { 0.dp }
+
+private val BrowserBottomBarTab.icon: ImageVector
+  get() =
+    when (this) {
+      BrowserBottomBarTab.HOME -> Icons.Filled.Home
+      BrowserBottomBarTab.BOOKMARKS -> Icons.Filled.Bookmarks
+      BrowserBottomBarTab.RECENTS -> Icons.Filled.History
+      BrowserBottomBarTab.PLAYLISTS -> Icons.AutoMirrored.Filled.PlaylistPlay
+      BrowserBottomBarTab.NETWORK -> Icons.Filled.Language
+    }

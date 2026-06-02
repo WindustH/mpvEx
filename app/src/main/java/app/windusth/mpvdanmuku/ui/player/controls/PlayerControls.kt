@@ -107,6 +107,7 @@ import app.windusth.mpvdanmuku.ui.player.VideoAspect
 import app.windusth.mpvdanmuku.ui.player.controls.components.BrightnessSlider
 import app.windusth.mpvdanmuku.ui.player.controls.components.CompactSpeedIndicator
 import app.windusth.mpvdanmuku.ui.player.controls.components.ControlsButton
+import app.windusth.mpvdanmuku.ui.player.controls.components.DanmakuInputBar
 import app.windusth.mpvdanmuku.ui.player.controls.components.DanmakuOverlay
 import app.windusth.mpvdanmuku.ui.player.controls.components.MultipleSpeedPlayerUpdate
 import app.windusth.mpvdanmuku.ui.player.controls.components.SeekPlayerUpdate
@@ -300,6 +301,7 @@ fun PlayerControls(
         val (bottomRightControls, bottomLeftControls) = createRefs()
         val playerPauseButton = createRef()
         val seekbar = createRef()
+        val danmakuInputBar = createRef()
         val (playerUpdates) = createRefs()
         val danmakuOverlay = createRef()
 
@@ -892,6 +894,30 @@ fun PlayerControls(
               }
             }
           }
+        }
+
+        // Danmaku input bar (Bilibili-style)
+        val isDanmakuLoggedIn = viewModel.isDanmakuLoggedIn()
+        val showDanmakuInput = controlsShown && !areControlsLocked &&
+          danmakuState.loadedEpisodeId != null && isDanmakuLoggedIn
+
+        if (showDanmakuInput) {
+          DanmakuInputBar(
+            isSending = danmakuState.isSendingComment,
+            errorMessage = danmakuState.errorMessage,
+            onSend = { text ->
+              val mode = viewModel.danmakuPreferences.sendMode.get()
+                .let { if (it in listOf(1, 4, 5)) it else 1 }
+              viewModel.sendDanmakuComment(text, mode)
+            },
+            modifier = Modifier
+              .constrainAs(danmakuInputBar) {
+                bottom.linkTo(seekbar.top, spacing.small)
+                start.linkTo(parent.start, spacing.large)
+                end.linkTo(parent.end, spacing.large)
+                width = Dimension.fillToConstraints
+              },
+          )
         }
 
         AnimatedVisibility(

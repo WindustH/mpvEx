@@ -1,7 +1,11 @@
 package app.windusth.mpvdanmuku.ui.preferences
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -17,17 +21,20 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import app.windusth.mpvdanmuku.presentation.Screen
+import app.windusth.mpvdanmuku.preferences.DandanplayOAuthStore
 import app.windusth.mpvdanmuku.preferences.DanmakuPreferences
-import app.windusth.mpvdanmuku.preferences.DanmakuAuthStore
 import app.windusth.mpvdanmuku.preferences.preference.collectAsState
 import app.windusth.mpvdanmuku.repository.danmaku.DandanplayDanmakuRepository
 import app.windusth.mpvdanmuku.ui.theme.spacing
@@ -47,9 +54,10 @@ object DanmakuPreferencesScreen : Screen {
   override fun Content() {
     val backStack = LocalBackStack.current
     val preferences = koinInject<DanmakuPreferences>()
-    val authStore = koinInject<DanmakuAuthStore>()
+    val oauthStore = koinInject<DandanplayOAuthStore>()
     val repository = koinInject<DandanplayDanmakuRepository>()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     Scaffold(
       topBar = {
@@ -91,11 +99,14 @@ object DanmakuPreferencesScreen : Screen {
         val mergeDuplicateThreshold by preferences.mergeDuplicateThreshold.collectAsState()
         val sendMode by preferences.sendMode.collectAsState()
         val sendColor by preferences.sendColor.collectAsState()
+        val dandanplayAppId by preferences.dandanplayAppId.collectAsState()
+        val dandanplayAppSecret by preferences.dandanplayAppSecret.collectAsState()
+        val dandanplayOAuthRedirectUri by preferences.dandanplayOAuthRedirectUri.collectAsState()
+        val dandanplayOAuthScope by preferences.dandanplayOAuthScope.collectAsState()
+        val dandanplayCommentProxyUrl by preferences.dandanplayCommentProxyUrl.collectAsState()
+        val oauthState by oauthStore.state.collectAsState()
 
-        var loginUserName by remember { mutableStateOf("") }
-        var loginPassword by remember { mutableStateOf("") }
-        var loginError by remember { mutableStateOf<String?>(null) }
-        var isLoggedInLocal by remember { mutableStateOf(authStore.isLoggedIn) }
+        var oauthMessage by remember { mutableStateOf<String?>(null) }
 
         LazyColumn(
           modifier = Modifier
@@ -103,77 +114,137 @@ object DanmakuPreferencesScreen : Screen {
             .padding(padding),
         ) {
           item {
+            PreferenceSectionHeader(title = "Dandanplay API")
+          }
+
+          item {
+            PreferenceCard {
+              Text(
+                text = "Login and sending require an authorized dandanplay Open Platform AppId/AppSecret. Leave empty to use the built-in public API credentials for matching and loading only.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+              )
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = dandanplayAppId,
+                onValueChange = { preferences.dandanplayAppId.set(it) },
+                label = { Text("AppId") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+              )
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = dandanplayAppSecret,
+                onValueChange = { preferences.dandanplayAppSecret.set(it) },
+                label = { Text("AppSecret") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+              )
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = dandanplayOAuthRedirectUri,
+                onValueChange = { preferences.dandanplayOAuthRedirectUri.set(it) },
+                label = { Text("OAuth Redirect URI") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+              )
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = dandanplayOAuthScope,
+                onValueChange = { preferences.dandanplayOAuthScope.set(it) },
+                label = { Text("OAuth Scope") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+              )
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = dandanplayCommentProxyUrl,
+                onValueChange = { preferences.dandanplayCommentProxyUrl.set(it) },
+                label = { Text("Comment Proxy URL") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+              )
+            }
+          }
+
+          item {
             PreferenceSectionHeader(title = "Account")
           }
 
           item {
             PreferenceCard {
-              if (isLoggedInLocal) {
+              if (oauthState.isAuthorized) {
                 Text(
-                  text = "Logged in as ${authStore.userName ?: "unknown"}",
+                  text = "Authorized via OAuth",
                   style = MaterialTheme.typography.bodyMedium,
                 )
-                Button(
-                  onClick = {
-                    authStore.logout()
-                    isLoggedInLocal = false
-                  },
-                ) {
-                  Text("Logout")
+                oauthState.scope?.takeIf { it.isNotBlank() }?.let { scope ->
+                  Text(
+                    text = "Scope: $scope",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                  )
                 }
               } else {
                 Text(
-                  text = "Login to send danmaku",
+                  text = "Authorize dandanplay in the browser to send danmaku with your account",
                   style = MaterialTheme.typography.bodySmall,
                   color = MaterialTheme.colorScheme.outline,
                 )
+              }
 
-                OutlinedTextField(
-                  value = loginUserName,
-                  onValueChange = { loginUserName = it },
-                  label = { Text("Username") },
-                  singleLine = true,
-                  modifier = Modifier.fillMaxWidth(),
-                )
+              Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedTextField(
-                  value = loginPassword,
-                  onValueChange = { loginPassword = it },
-                  label = { Text("Password") },
-                  singleLine = true,
-                  visualTransformation = PasswordVisualTransformation(),
-                  modifier = Modifier.fillMaxWidth(),
-                )
-
-                if (loginError != null) {
-                  Text(
-                    text = loginError!!,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                  )
-                }
-
-                Button(
-                  onClick = {
-                    loginError = null
-                    coroutineScope.launch {
-                      runCatching {
-                        repository.login(loginUserName, loginPassword)
-                      }.onSuccess { result ->
-                        authStore.saveLogin(result)
-                        isLoggedInLocal = true
-                        loginUserName = ""
-                        loginPassword = ""
-                      }.onFailure { error ->
-                        loginError = error.message ?: "Login failed"
-                      }
+              Button(
+                onClick = {
+                  oauthMessage = null
+                  coroutineScope.launch {
+                    runCatching {
+                      repository.createOAuthAuthorizationUrl()
+                    }.onSuccess { url ->
+                      context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    }.onFailure { error ->
+                      oauthMessage = error.message ?: "Failed to start authorization"
                     }
-                  },
-                  enabled = loginUserName.isNotBlank() && loginPassword.isNotBlank(),
-                  modifier = Modifier.fillMaxWidth(),
-                ) {
-                  Text("Login")
-                }
+                  }
+                },
+                enabled = dandanplayAppId.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+              ) {
+                Text(if (oauthState.isAuthorized) "Reauthorize dandanplay" else "Authorize dandanplay")
+              }
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              Button(
+                onClick = {
+                  oauthStore.logout()
+                  oauthMessage = "Logged out"
+                },
+                enabled = oauthState.isAuthorized,
+                modifier = Modifier.fillMaxWidth(),
+              ) {
+                Text("Logout")
+              }
+
+              oauthMessage?.let { message ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                  text = message,
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.outline,
+                )
               }
             }
           }
@@ -267,6 +338,90 @@ object DanmakuPreferencesScreen : Screen {
                   )
                 },
               )
+            }
+          }
+
+          item {
+            PreferenceSectionHeader(title = "LLM Parsing")
+          }
+
+          item {
+            PreferenceCard {
+              val llmApiBaseUrl by preferences.llmApiBaseUrl.collectAsState()
+              val llmApiKey by preferences.llmApiKey.collectAsState()
+              val llmModel by preferences.llmModel.collectAsState()
+
+              var testResult by remember { mutableStateOf<String?>(null) }
+              var isTesting by remember { mutableStateOf(false) }
+
+              Text(
+                text = "Configure an OpenAI-compatible LLM API for smarter filename parsing. When configured, this replaces regex-based parsing. Falls back to regex if unavailable.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+              )
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = llmApiBaseUrl,
+                onValueChange = { preferences.llmApiBaseUrl.set(it) },
+                label = { Text("API Base URL") },
+                placeholder = { Text("https://api.openai.com/v1") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+              )
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = llmApiKey,
+                onValueChange = { preferences.llmApiKey.set(it) },
+                label = { Text("API Key") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+              )
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              OutlinedTextField(
+                value = llmModel,
+                onValueChange = { preferences.llmModel.set(it) },
+                label = { Text("Model") },
+                placeholder = { Text("gpt-4o-mini") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+              )
+
+              Spacer(modifier = Modifier.height(12.dp))
+
+              Button(
+                onClick = {
+                  testResult = null
+                  isTesting = true
+                  coroutineScope.launch {
+                    testResult = repository.testLlmConnection()
+                    isTesting = false
+                  }
+                },
+                enabled = !isTesting && llmApiBaseUrl.isNotBlank() && llmApiKey.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+              ) {
+                Text(if (isTesting) "Testing..." else "Test Connection")
+              }
+
+              if (testResult != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                  text = testResult!!,
+                  style = MaterialTheme.typography.bodySmall,
+                  color = if (testResult!!.startsWith("Error")) {
+                    MaterialTheme.colorScheme.error
+                  } else {
+                    MaterialTheme.colorScheme.primary
+                  },
+                )
+              }
             }
           }
 

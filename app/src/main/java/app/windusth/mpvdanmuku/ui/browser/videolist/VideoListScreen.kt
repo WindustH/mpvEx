@@ -33,14 +33,17 @@ import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.ViewModule
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
@@ -141,6 +144,7 @@ data class VideoListScreen(
     val videos by viewModel.videos.collectAsState()
     val videosWithPlaybackInfo by viewModel.videosWithPlaybackInfo.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isBookmarked by viewModel.isBookmarked.collectAsState()
     val recentlyPlayedFilePath by viewModel.recentlyPlayedFilePath.collectAsState()
     val lastPlayedInFolderPath by viewModel.lastPlayedInFolderPath.collectAsState()
     val playlistMode by playerPreferences.playlistMode.collectAsState()
@@ -272,6 +276,19 @@ data class VideoListScreen(
           onSortClick = { sortDialogOpen.value = true },
           onSettingsClick = {
             backstack.add(app.windusth.mpvdanmuku.ui.preferences.PreferencesScreen)
+          },
+          additionalActions = {
+            IconButton(
+              onClick = { viewModel.toggleBookmark(displayFolderName) },
+              modifier = Modifier.padding(horizontal = 2.dp),
+            ) {
+              Icon(
+                imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                contentDescription = "Bookmark",
+                modifier = Modifier.size(24.dp),
+                tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+              )
+            }
           },
           isSingleSelection = selectionManager.isSingleSelection,
           onInfoClick = {

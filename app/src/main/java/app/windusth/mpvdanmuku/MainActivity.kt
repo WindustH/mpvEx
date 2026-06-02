@@ -1,7 +1,10 @@
 package app.windusth.mpvdanmuku
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -19,7 +22,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
@@ -28,6 +30,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -35,7 +38,7 @@ import androidx.navigation3.ui.NavDisplay
 import app.windusth.mpvdanmuku.preferences.AppearancePreferences
 import app.windusth.mpvdanmuku.preferences.preference.collectAsState
 import app.windusth.mpvdanmuku.presentation.Screen
-import app.windusth.mpvdanmuku.repository.NetworkRepository
+import app.windusth.mpvdanmuku.repository.danmaku.DandanplayDanmakuRepository
 import app.windusth.mpvdanmuku.utils.update.UpdateDialog
 import app.windusth.mpvdanmuku.utils.update.UpdateViewModel
 import app.windusth.mpvdanmuku.ui.browser.MainScreen
@@ -43,11 +46,8 @@ import app.windusth.mpvdanmuku.ui.theme.DarkMode
 import app.windusth.mpvdanmuku.ui.theme.MpvexTheme
 import app.windusth.mpvdanmuku.ui.utils.LocalBackStack
 import app.windusth.mpvdanmuku.utils.permission.PermissionUtils
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 
 /**
@@ -55,10 +55,7 @@ import org.koin.android.ext.android.inject
  */
 class MainActivity : ComponentActivity() {
   private val appearancePreferences by inject<AppearancePreferences>()
-  private val networkRepository by inject<NetworkRepository>()
-  
-  // Create a coroutine scope tied to the activity lifecycle
-  private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+  private val danmakuRepository by inject<DandanplayDanmakuRepository>()
 
   // Register the ActivityResultLauncher at class level
   private val mediaAccessLauncher = registerForActivityResult(
@@ -69,6 +66,7 @@ class MainActivity : ComponentActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    handleDandanplayOAuthIntent(intent)
     
     PermissionUtils.setMediaAccessLauncher(mediaAccessLauncher)
 
@@ -87,11 +85,6 @@ class MainActivity : ComponentActivity() {
         ) { isDarkMode },
       )
 
-      // Auto-connect to saved network connections
-      LaunchedEffect(Unit) {
-        autoConnectToNetworks()
-      }
-
       MpvexTheme {
         Surface {
           Navigator()
@@ -108,40 +101,29 @@ class MainActivity : ComponentActivity() {
     }
   }
 
-  /**
-   * Auto-connect to network connections that are marked for auto-connection
-   */
-  private suspend fun autoConnectToNetworks() {
-    // Delay auto-connect to let UI settle first
-    kotlinx.coroutines.delay(500)
-    
-    // Use coroutineScope for properly structured concurrency
-    withContext(Dispatchers.IO) {
-      try {
-        val autoConnectConnections = networkRepository.getAutoConnectConnections()
-        autoConnectConnections.forEach { connection ->
-          withContext(Dispatchers.Main) {
-            Log.d("MainActivity", "Auto-connecting to: ${connection.name}")
-          }
-          networkRepository.connect(connection)
-            .onSuccess {
-              withContext(Dispatchers.Main) {
-                Log.d("MainActivity", "Auto-connected successfully: ${connection.name}")
-              }
-            }
-            .onFailure { e ->
-              withContext(Dispatchers.Main) {
-                Log.e("MainActivity", "Auto-connect failed for ${connection.name}: ${e.message}")
-              }
-            }
-        }
-      } catch (e: Exception) {
-        withContext(Dispatchers.Main) {
-          Log.e("MainActivity", "Error during auto-connect", e)
-        }
-      }
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleDandanplayOAuthIntent(intent)
+  }
+
+  private fun handleDandanplayOAuthIntent(intent: Intent?) {
+    val uri = intent?.data ?: return
+    if (!uri.isDandanplayOAuthCallback()) return
+
+    lifecycleScope.launch {
+      val message = runCatching {
+        danmakuRepository.completeOAuthAuthorization(uri)
+      }.fold(
+        onSuccess = { it.message },
+        onFailure = { "dandanplay authorization failed: ${it.message}" },
+      )
+      Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
     }
   }
+
+  private fun Uri.isDandanplayOAuthCallback(): Boolean =
+    scheme == "mpvdanmuku" && host == "dandanplay" && path == "/oauth"
 
   /**
    * Navigator that handles screen transitions and provides shared states

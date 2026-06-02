@@ -45,6 +45,8 @@ class BrowserPreferences(
   val showDateChip = preferenceStore.getBoolean("show_date_chip", false)
   val showFolderPath = preferenceStore.getBoolean("show_folder_path", true)
 
+  val bottomBarTabs = preferenceStore.getStringSet("browser_bottom_bar_tabs", BrowserBottomBarTab.defaultVisibleKeys)
+
   // Auto-scroll to last played media preference (like MX Player)
   val autoScrollToLastPlayed = preferenceStore.getBoolean("auto_scroll_to_last_played", false)
 
@@ -130,4 +132,25 @@ enum class MediaLayoutMode {
       LIST -> "List"
       GRID -> "Grid"
     }
+}
+
+enum class BrowserBottomBarTab(
+  val key: String,
+  val displayName: String,
+) {
+  HOME("home", "Home"),
+  BOOKMARKS("bookmarks", "Bookmarks"),
+  RECENTS("recents", "Recents"),
+  PLAYLISTS("playlists", "Playlists"),
+  NETWORK("network", "Network"),
+  ;
+
+  companion object {
+    val defaultVisibleKeys: Set<String> = entries.mapTo(linkedSetOf()) { it.key }
+
+    fun visibleTabs(keys: Set<String>): List<BrowserBottomBarTab> {
+      val visibleKeys = keys.ifEmpty { defaultVisibleKeys }
+      return entries.filter { it.key in visibleKeys }.ifEmpty { entries.toList() }
+    }
+  }
 }

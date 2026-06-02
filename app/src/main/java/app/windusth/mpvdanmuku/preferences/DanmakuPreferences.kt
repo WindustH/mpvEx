@@ -21,4 +21,18 @@ class DanmakuPreferences(
   val mergeDuplicateThreshold = preferenceStore.getInt("danmaku_merge_duplicate_threshold", 3)
   val sendMode = preferenceStore.getInt("danmaku_send_mode", 1)
   val sendColor = preferenceStore.getInt("danmaku_send_color", 0xFFFFFF)
+
+  val dandanplayAppId = preferenceStore.getString("danmaku_dandanplay_app_id", "")
+  val dandanplayAppSecret = preferenceStore.getString("danmaku_dandanplay_app_secret", "")
+  val dandanplayOAuthRedirectUri = preferenceStore.getString(
+    "danmaku_dandanplay_oauth_redirect_uri",
+    "mpvdanmuku://dandanplay/oauth",
+  )
+  val dandanplayOAuthScope = preferenceStore.getString("danmaku_dandanplay_oauth_scope", "basic profile")
+  val dandanplayCommentProxyUrl = preferenceStore.getString("danmaku_dandanplay_comment_proxy_url", "")
+
+  // LLM-based filename parsing
+  val llmApiBaseUrl = preferenceStore.getString("danmaku_llm_api_base_url", "")
+  val llmApiKey = preferenceStore.getString("danmaku_llm_api_key", "")
+  val llmModel = preferenceStore.getString("danmaku_llm_model", "gpt-4o-mini")
 }

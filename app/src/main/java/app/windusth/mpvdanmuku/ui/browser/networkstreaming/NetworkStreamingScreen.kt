@@ -1,7 +1,6 @@
 package app.windusth.mpvdanmuku.ui.browser.networkstreaming
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,22 +13,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SignalWifiConnectedNoInternet4
 import androidx.compose.material.icons.rounded.SignalWifiStatusbarConnectedNoInternet4
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -37,7 +32,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -54,18 +48,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.windusth.mpvdanmuku.domain.network.NetworkConnection
 import app.windusth.mpvdanmuku.presentation.Screen
-import app.windusth.mpvdanmuku.ui.browser.components.BrowserTopBar
 import app.windusth.mpvdanmuku.ui.browser.cards.NetworkConnectionCard
+import app.windusth.mpvdanmuku.ui.browser.components.BrowserTopBar
 import app.windusth.mpvdanmuku.ui.browser.dialogs.AddConnectionSheet
 import app.windusth.mpvdanmuku.ui.browser.dialogs.EditConnectionSheet
-import app.windusth.mpvdanmuku.ui.browser.states.EmptyState
-import app.windusth.mpvdanmuku.ui.preferences.PreferencesScreen
 import app.windusth.mpvdanmuku.ui.utils.LocalBackStack
 import app.windusth.mpvdanmuku.utils.media.MediaUtils
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import org.koin.compose.koinInject
-import app.windusth.mpvdanmuku.preferences.FolderViewMode
 
 @Serializable
 object NetworkStreamingScreen : Screen {
@@ -79,7 +68,6 @@ object NetworkStreamingScreen : Screen {
 
     val connections by viewModel.connections.collectAsState()
     val connectionStatuses by viewModel.connectionStatuses.collectAsState()
-    val browserPreferences = koinInject<app.windusth.mpvdanmuku.preferences.BrowserPreferences>()
     var showAddSheet by remember { mutableStateOf(false) }
     var editingConnection by remember { mutableStateOf<NetworkConnection?>(null) }
     val navigationBarHeight = app.windusth.mpvdanmuku.ui.browser.LocalNavigationBarHeight.current
@@ -90,9 +78,7 @@ object NetworkStreamingScreen : Screen {
     // Track scroll direction to show/hide FAB
     var previousFirstVisibleItemIndex by remember { mutableIntStateOf(0) }
     var previousFirstVisibleItemScrollOffset by remember { mutableIntStateOf(0) }
-    
-    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
-    
+
     val isFabVisible by remember {
       derivedStateOf {
         val currentIndex = listState.firstVisibleItemIndex
@@ -228,28 +214,17 @@ object NetworkStreamingScreen : Screen {
               val status = connectionStatuses[connection.id]
               NetworkConnectionCard(
                 connection = connection,
-                onConnect = { conn ->
-                  viewModel.connect(conn)
-                },
-                onDisconnect = { conn -> viewModel.disconnect(conn) },
                 onEdit = { conn -> editingConnection = conn },
                 onDelete = { conn -> viewModel.deleteConnection(conn) },
                 onBrowse = { conn ->
-                  // Navigate to browser screen if connected
-                  if (status?.isConnected == true) {
-                    backstack.add(
-                      NetworkBrowserScreen(
-                        connectionId = conn.id,
-                        connectionName = conn.name,
-                        currentPath = "/",  // Always start at root - conn.path is already included in connection
-                      ),
-                    )
-                  }
+                  backstack.add(
+                    NetworkBrowserScreen(
+                      connectionId = conn.id,
+                      connectionName = conn.name,
+                      currentPath = "/",
+                    ),
+                  )
                 },
-                onAutoConnectChange = { conn, autoConnect ->
-                  viewModel.updateConnection(conn.copy(autoConnect = autoConnect))
-                },
-                isConnected = status?.isConnected ?: false,
                 isConnecting = status?.isConnecting ?: false,
                 error = status?.error,
                 modifier = Modifier.padding(bottom = 16.dp),

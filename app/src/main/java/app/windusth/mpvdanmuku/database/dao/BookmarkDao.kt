@@ -27,4 +27,7 @@ interface BookmarkDao {
 
   @Query("DELETE FROM bookmarks WHERE path = :path AND type = :type AND (connectionId = :connectionId OR (connectionId IS NULL AND :connectionId IS NULL))")
   suspend fun deleteBookmarkByPath(path: String, type: String, connectionId: Long?)
+
+  @Query("UPDATE bookmarks SET name = :newName WHERE id = :id")
+  suspend fun updateBookmarkName(id: Long, newName: String)
 }

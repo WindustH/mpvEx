@@ -88,6 +88,13 @@ data class NetworkBrowserScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val isBookmarked by viewModel.isBookmarked.collectAsState()
+    val bookmarkName = remember(connectionName, currentPath) {
+      currentPath
+        .trimEnd('/')
+        .substringAfterLast('/')
+        .takeIf { it.isNotBlank() }
+        ?: connectionName
+    }
 
     // UI State
     val isRefreshing = remember { mutableStateOf(false) }
@@ -117,14 +124,14 @@ data class NetworkBrowserScreen(
           },
           additionalActions = {
             IconButton(
-              onClick = { viewModel.toggleBookmark(connectionName) },
-              modifier = Modifier.padding(horizontal = 2.dp)
-              ) {
+              onClick = { viewModel.toggleBookmark(bookmarkName) },
+              modifier = Modifier.padding(horizontal = 2.dp),
+            ) {
               Icon(
                 imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Outlined.StarOutline,
                 contentDescription = "Bookmark",
                 modifier = Modifier.size(24.dp),
-                tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
               )
             }
           },

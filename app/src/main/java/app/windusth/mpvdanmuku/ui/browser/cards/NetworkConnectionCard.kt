@@ -10,12 +10,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -32,14 +29,10 @@ import app.windusth.mpvdanmuku.domain.network.NetworkConnection
 @Composable
 fun NetworkConnectionCard(
   connection: NetworkConnection,
-  onConnect: (NetworkConnection) -> Unit,
-  onDisconnect: (NetworkConnection) -> Unit,
   onEdit: (NetworkConnection) -> Unit,
   onDelete: (NetworkConnection) -> Unit,
   onBrowse: (NetworkConnection) -> Unit,
-  onAutoConnectChange: (NetworkConnection, Boolean) -> Unit,
   modifier: Modifier = Modifier,
-  isConnected: Boolean = false,
   isConnecting: Boolean = false,
   error: String? = null,
 ) {
@@ -121,106 +114,45 @@ fun NetworkConnectionCard(
         )
       }
 
-      // Auto-connect checkbox
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(top = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Checkbox(
-          checked = connection.autoConnect,
-          onCheckedChange = { checked ->
-            onAutoConnectChange(connection, checked)
-          },
-        )
-        Text(
-          text = "Connect automatically on app launch",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-
-      // Connection button
       Row(
         modifier = Modifier
           .fillMaxWidth()
           .padding(top = 12.dp),
         horizontalArrangement = Arrangement.End,
       ) {
-        when {
-          isConnecting -> {
-            FilledTonalButton(
-              onClick = { },
-              enabled = false,
-            ) {
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-              ) {
-                CircularProgressIndicator(
-                  modifier = Modifier.size(16.dp),
-                  strokeWidth = 2.dp,
-                  color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                )
-                Text(
-                  "Connecting",
-                  color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                )
-              }
-            }
-          }
-
-          isConnected -> {
+        FilledTonalButton(
+          onClick = { onBrowse(connection) },
+          enabled = !isConnecting,
+          colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+          ),
+        ) {
+          if (isConnecting) {
             Row(
+              verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-              FilledTonalButton(
-                onClick = { onBrowse(connection) },
-                colors = ButtonDefaults.filledTonalButtonColors(
-                  containerColor = MaterialTheme.colorScheme.primaryContainer,
-                  contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-              ) {
-                Icon(
-                  Icons.Filled.FolderOpen,
-                  contentDescription = null,
-                  modifier = Modifier.padding(end = 8.dp),
-                )
-                Text("Browse")
-              }
-
-              FilledTonalButton(
-                onClick = { onDisconnect(connection) },
-                colors = ButtonDefaults.filledTonalButtonColors(
-                  containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                  contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                ),
-              ) {
-                Icon(
-                  Icons.Filled.LinkOff,
-                  contentDescription = null,
-                  modifier = Modifier.padding(end = 8.dp),
-                )
-                Text("Disconnect")
-              }
+              CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+              )
+              Text(
+                "Opening",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+              )
             }
-          }
-
-          else -> {
-            FilledTonalButton(
-              onClick = { onConnect(connection) },
-              colors = ButtonDefaults.filledTonalButtonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-              ),
+          } else {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
               Icon(
-                Icons.Filled.Link,
+                Icons.Filled.FolderOpen,
                 contentDescription = null,
-                modifier = Modifier.padding(end = 8.dp),
               )
-              Text("Connect")
+              Text("Browse")
             }
           }
         }

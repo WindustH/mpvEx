@@ -36,9 +36,11 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.ViewModule
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
@@ -206,6 +208,7 @@ fun FileSystemBrowserScreen(path: String? = null) {
   
   // Get navigation bar height from MainScreen
   val navigationBarHeight = app.windusth.mpvdanmuku.ui.browser.LocalNavigationBarHeight.current
+  val currentFolderName = breadcrumbs.lastOrNull()?.name ?: currentPath.substringAfterLast('/').ifBlank { currentPath }
 
   // Copy/Move state
   val folderPickerOpen = rememberSaveable { mutableStateOf(false) }
@@ -437,14 +440,12 @@ fun FileSystemBrowserScreen(path: String? = null) {
             
             Log.d("FileSystemBrowserScreen", "Total search results after deduplication: ${uniqueResults.size}")
             uniqueResults
-          } else if (currentPath != null) {
+          } else {
             // In a specific directory - search from there
             Log.d("FileSystemBrowserScreen", "Searching in directory: $currentPath")
             val results = app.windusth.mpvdanmuku.ui.browser.filesystem.searchRecursively(context, currentPath, searchQuery)
             Log.d("FileSystemBrowserScreen", "Found ${results.size} results in $currentPath")
             results
-          } else {
-            emptyList()
           }
           searchResults = results
         } catch (e: Exception) {
@@ -564,6 +565,21 @@ fun FileSystemBrowserScreen(path: String? = null) {
             },
             onSettingsClick = {
               backstack.add(app.windusth.mpvdanmuku.ui.preferences.PreferencesScreen)
+            },
+            additionalActions = {
+              if (!isAtRoot) {
+                IconButton(
+                  onClick = { viewModel.toggleBookmark(currentFolderName) },
+                  modifier = Modifier.padding(horizontal = 2.dp),
+                ) {
+                  Icon(
+                    imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                    contentDescription = "Bookmark",
+                    modifier = Modifier.size(24.dp),
+                    tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                  )
+                }
+              }
             },
             onDeleteClick = if (videoSelectionManager.isInSelectionMode && !isMixedSelection) {
               null
@@ -1682,4 +1698,3 @@ fun FileSystemSortDialog(
     )
   )
 }
-

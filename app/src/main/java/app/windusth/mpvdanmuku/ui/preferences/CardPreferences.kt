@@ -27,7 +27,7 @@ fun PreferenceCard(
     modifier = modifier
       .fillMaxWidth()
       .padding(horizontal = 16.dp, vertical = 8.dp),
-    shape = RoundedCornerShape(28.dp),
+    shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(
       containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ),
@@ -36,7 +36,7 @@ fun PreferenceCard(
     ),
   ) {
     Column(
-      modifier = Modifier.padding(vertical = 8.dp),
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
       verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
       content()

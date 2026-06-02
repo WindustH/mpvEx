@@ -30,11 +30,6 @@ class NetworkRepository(
   fun getAllConnections(): Flow<List<NetworkConnection>> = dao.getAllConnections()
 
   /**
-   * Get connections that should auto-connect on launch
-   */
-  suspend fun getAutoConnectConnections(): List<NetworkConnection> = dao.getAutoConnectConnections()
-
-  /**
    * Get a connection by ID
    */
   suspend fun getConnectionById(id: Long): NetworkConnection? = dao.getConnectionById(id)
@@ -197,21 +192,30 @@ class NetworkRepository(
       // Always fetch the latest connection from database to ensure we have current credentials
       val latestConnection = dao.getConnectionById(connection.id) ?: connection
 
-      // Check if we have an active client
       val existingClient = activeClients[connection.id]
-
-      // If no client exists, or if connection details have changed, create a new one
-      val client = if (existingClient == null) {
-        // Create new client with latest connection settings
-        NetworkClientFactory.createClient(latestConnection).also { newClient ->
-          newClient.connect().getOrThrow()
-          activeClients[connection.id] = newClient
-        }
-      } else {
+      val client = if (existingClient?.isConnected() == true) {
+        updateConnectionStatus(
+          connection.id,
+          ConnectionStatus(
+            connectionId = connection.id,
+            isConnected = true,
+            isConnecting = false,
+          ),
+        )
         existingClient
+      } else {
+        existingClient?.let {
+          try {
+            it.disconnect()
+          } catch (e: Exception) {
+            // Ignore stale client cleanup errors
+          }
+        }
+        activeClients.remove(connection.id)
+        connect(latestConnection).getOrThrow()
+        activeClients[connection.id] ?: throw IllegalStateException("Connection failed")
       }
 
-      // List files
       client.listFiles(path)
     } catch (e: Exception) {
       Result.failure(e)

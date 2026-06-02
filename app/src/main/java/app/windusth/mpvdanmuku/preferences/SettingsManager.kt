@@ -183,7 +183,6 @@ class SettingsManager(
     serializer.attribute(null, "path", connection.path)
     serializer.attribute(null, "isAnonymous", connection.isAnonymous.toString())
     serializer.attribute(null, "lastConnected", connection.lastConnected.toString())
-    serializer.attribute(null, "autoConnect", connection.autoConnect.toString())
     serializer.attribute(null, "useHttps", connection.useHttps.toString())
     serializer.endTag(null, TAG_NETWORK_CONNECTION)
   }
@@ -290,7 +289,7 @@ class SettingsManager(
       path = parser.getAttributeValue(null, "path") ?: "/",
       isAnonymous = parser.getAttributeValue(null, "isAnonymous")?.toBoolean() ?: false,
       lastConnected = parser.getAttributeValue(null, "lastConnected")?.toLongOrNull() ?: 0L,
-      autoConnect = parser.getAttributeValue(null, "autoConnect")?.toBoolean() ?: false,
+      autoConnect = false,
       useHttps = parser.getAttributeValue(null, "useHttps")?.toBoolean() ?: false,
     )
   }
