@@ -1,6 +1,6 @@
-# mpvDanmuku
+# mpvDanmaku
 
-<p align="center"><img src="mpvDanmuku.svg" width="128" alt="mpvDanmuku icon" /></p>
+<p align="center"><img src="mpvDanmaku.svg" width="128" alt="mpvDanmaku icon" /></p>
 
 **Fork of [marlboro-advance/mpvEx](https://github.com/marlboro-advance/mpvEx), based on
 [mpv-android](https://github.com/mpv-android/mpv-android) and the libmpv library.**
@@ -35,12 +35,12 @@ This fork adds:
 ## Project Architecture
 
 ```
-mpvDanmuku/
+mpvDanmaku/
 ├── .android-sdk/            # Android SDK (gitignored, see Building)
 ├── .gradle-local/           # Gradle caches (gitignored, via tools/env.sh)
 ├── app/
 │   ├── build.gradle.kts     # App module config
-│   ├── src/main/java/app/windusth/mpvdanmuku/
+│   ├── src/main/java/app/windusth/mpvdanmaku/
 │   │   ├── di/              # Koin dependency injection modules
 │   │   ├── database/        # Room DB (entities, DAOs, converters)
 │   │   ├── domain/          # Business logic (anime4k, browser, thumbnail)
@@ -77,7 +77,7 @@ mpvDanmuku/
 
 - **MVVM**: `PlayerActivity` hosts `PlayerViewModel`; UI state flows drive Compose.
 - **Koin DI**: Modules in `di/` register singletons (repositories, managers, preferences).
-- **Room**: `MpvDanmukuDatabase` with DAOs for playback state, folders, recently played.
+- **Room**: `MpvDanmakuDatabase` with DAOs for playback state, folders, recently played.
 - **Repository**: `DandanplayDanmakuRepository` talks to danmaku API; `WyzieSearchRepository` handles subtitle sources.
 - **Compose Overlay**: `DanmakuOverlay` runs its own frame-rate loop independent of mpv's progress polling for smooth scrolling.
 - **Preference Store**: Abstracted `Primitive` classes (in `preferences/preference/`) wrap SharedPreferences with Flow-based observation.

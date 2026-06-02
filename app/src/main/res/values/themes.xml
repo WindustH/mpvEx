@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.mpvdanmuku" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar" />
+    <style name="Theme.mpvdanmaku" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar" />
 </resources>

@@ -33,5 +33,5 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "mpvDanmuku"
+rootProject.name = "mpvDanmaku"
 include(":app")

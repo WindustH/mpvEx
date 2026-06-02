@@ -10,11 +10,11 @@ plugins {
 }
 
 android {
-  namespace = "app.windusth.mpvdanmuku"
+  namespace = "app.windusth.mpvdanmaku"
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "app.windusth.mpvdanmuku"
+    applicationId = "app.windusth.mpvdanmaku"
     minSdk = 26
     targetSdk = 36
     versionCode = 200
